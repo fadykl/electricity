@@ -1460,14 +1460,12 @@ with app.app_context():
 @app.route('/dashboards')
 @login_required
 def dashboards():
-    # ----- inputs: start=end=YYYY-MM -----
     start_str = (request.args.get('start') or '').strip()
     end_str   = (request.args.get('end') or '').strip()
 
     def ym_to_date(s):
         try:
             y, m = s.split('-')
-            from datetime import date
             return date(int(y), int(m), 1)
         except Exception:
             return None
@@ -1475,112 +1473,105 @@ def dashboards():
     start_date = ym_to_date(start_str)
     end_month  = ym_to_date(end_str)
 
-    # upper bound (first day of month after end)
+    # upper bound
     next_after_end = None
     if end_month:
         if end_month.month == 12:
-            next_after_end = end_month.replace(year=end_month.year+1, month=1)
+            next_after_end = end_month.replace(year=end_month.year + 1, month=1)
         else:
-            next_after_end = end_month.replace(month=end_month.month+1)
+            next_after_end = end_month.replace(month=end_month.month + 1)
 
-    # ----- USD rate (LBP per USD) -----
+    # pricing info
     p = get_pricing()
     rate = float(p.usd_rate or 1.0) or 1.0
 
-    # ----- Invoices aggregated by month (LBP in DB) -----
+    # --- Engine-aware label for Invoice
+    if db.engine.name == "postgresql":
+        ym_invoice = func.to_char(Invoice.date, 'YYYY-MM').label('ym')
+    else:
+        ym_invoice = func.strftime('%Y-%m', Invoice.date).label('ym')
+
     qry = (db.session.query(
-        
-# Engine-aware year-month label for Invoice
-if db.engine.name == "postgresql":
-    ym_invoice = func.to_char(Invoice.date, 'YYYY-MM').label('ym')
-else:
-    ym_invoice = ym_invoice
-ym_invoice,
+        ym_invoice,
         func.count(Invoice.id).label('count'),
         func.sum(Invoice.total_due).label('total_due'),
         func.sum(Invoice.kwh_used).label('kwh'),
         func.sum(case((Invoice.is_paid == True, Invoice.total_due), else_=0.0)).label('paid_due')
     ))
+
     if start_date:
         qry = qry.filter(Invoice.date >= start_date)
     if next_after_end:
         qry = qry.filter(Invoice.date < next_after_end)
 
-    rows = qry.group_by('ym').order_by('ym').all()
+    rows = qry.group_by(ym_invoice).order_by(ym_invoice).all()
     labels = [r.ym for r in rows]
 
-    # if no data, return safe empty payload
     if not rows:
         return render_template('dashboards.html',
                                labels=[], invoice_counts=[], totals=[],
                                kwh=[], paid=[], unpaid=[], avg_invoice=[],
-                               latest={"month":"", "count":0, "total":0.0, "kwh":0,
-                                       "paid":0.0, "unpaid":0.0, "avg_invoice":0.0,
-                                       "expenses":0.0, "net_total":0.0},
+                               latest={"month": "", "count": 0, "total": 0.0,
+                                       "kwh": 0, "paid": 0.0, "unpaid": 0.0,
+                                       "avg_invoice": 0.0, "expenses": 0.0, "net_total": 0.0},
                                start=start_str, end=end_str)
 
-    # chosen month = user selected (start) else last month with data
     selected_ym = start_str if start_str else labels[-1]
     try:
         sel_idx = labels.index(selected_ym)
     except ValueError:
         sel_idx = len(labels) - 1
 
-    # ----- Convert invoice money to USD (once) -----
     invoice_counts = [int(r.count or 0) for r in rows]
     kwh            = [int(r.kwh or 0) for r in rows]
 
-    totals_usd = [ (float(r.total_due or 0.0) / rate) for r in rows ]
-    paid_usd   = [ (float(r.paid_due  or 0.0) / rate) for r in rows ]
-    unpaid_usd = [ max(0.0, (float(r.total_due or 0.0) - float(r.paid_due or 0.0)) / rate) for r in rows ]
-    avg_inv_usd= [ (totals_usd[i] / invoice_counts[i]) if invoice_counts[i] else 0.0
-                   for i in range(len(rows)) ]
+    totals_usd = [float(r.total_due or 0.0) / rate for r in rows]
+    paid_usd   = [float(r.paid_due or 0.0) / rate for r in rows]
+    unpaid_usd = [max(0.0, (float(r.total_due or 0.0) - float(r.paid_due or 0.0)) / rate) for r in rows]
+    avg_inv_usd= [totals_usd[i] / invoice_counts[i] if invoice_counts[i] else 0.0
+                   for i in range(len(rows))]
 
-    # ----- Expenses aggregated by month (ALREADY USD — NO division) -----
+    # --- Engine-aware label for Expense
+    if db.engine.name == "postgresql":
+        ym_expense = func.to_char(Expense.date, 'YYYY-MM').label('ym')
+    else:
+        ym_expense = func.strftime('%Y-%m', Expense.date).label('ym')
+
     exp_q = db.session.query(
-        
-# Engine-aware year-month label for Expense
-if db.engine.name == "postgresql":
-    ym_expense = func.to_char(Expense.date, 'YYYY-MM').label('ym')
-else:
-    ym_expense = ym_expense
-ym_expense,
+        ym_expense,
         func.sum(Expense.cost).label('exp_total')
     )
+
     if start_date:
         exp_q = exp_q.filter(Expense.date >= start_date)
     if next_after_end:
         exp_q = exp_q.filter(Expense.date < next_after_end)
-    exp_rows = exp_q.group_by('ym').order_by('ym').all()
 
-    # keep as-is in USD
-    exp_map = { r.ym: float(r.exp_total or 0.0) for r in exp_rows }
+    exp_rows = exp_q.group_by(ym_expense).order_by(ym_expense).all()
+    exp_map = {r.ym: float(r.exp_total or 0.0) for r in exp_rows}
+    net_usd = [totals_usd[i] - float(exp_map.get(lbl, 0.0)) for i, lbl in enumerate(labels)]
 
-    # ----- Net per month (USD - USD) -----
-    net_usd = [ totals_usd[i] - float(exp_map.get(lbl, 0.0)) for i, lbl in enumerate(labels) ]
-
-    # ----- Snapshot for selected month -----
     latest = {
-        "month":       labels[sel_idx],
-        "count":       invoice_counts[sel_idx],
-        "total":       totals_usd[sel_idx],                     # USD
-        "kwh":         kwh[sel_idx],
-        "paid":        paid_usd[sel_idx],                       # USD
-        "unpaid":      unpaid_usd[sel_idx],                     # USD
-        "avg_invoice": avg_inv_usd[sel_idx],                    # USD
-        "expenses":    float(exp_map.get(labels[sel_idx], 0.0)),# USD (no /rate)
-        "net_total":   net_usd[sel_idx],                        # USD
+        "month": labels[sel_idx],
+        "count": invoice_counts[sel_idx],
+        "total": totals_usd[sel_idx],
+        "kwh": kwh[sel_idx],
+        "paid": paid_usd[sel_idx],
+        "unpaid": unpaid_usd[sel_idx],
+        "avg_invoice": avg_inv_usd[sel_idx],
+        "expenses": float(exp_map.get(labels[sel_idx], 0.0)),
+        "net_total": net_usd[sel_idx],
     }
 
     return render_template('dashboards.html',
                            labels=labels,
                            invoice_counts=invoice_counts,
-                           totals=totals_usd,    # USD
+                           totals=totals_usd,
                            kwh=kwh,
-                           paid=paid_usd,        # USD
-                           unpaid=unpaid_usd,    # USD
-                           avg_invoice=avg_inv_usd,  # USD
-                           latest=latest,        # USD snapshot
+                           paid=paid_usd,
+                           unpaid=unpaid_usd,
+                           avg_invoice=avg_inv_usd,
+                           latest=latest,
                            start=start_str, end=end_str)
 
 
