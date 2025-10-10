@@ -1585,6 +1585,25 @@ def create_admin_once():
         else:
             return "⚠️ Admin already exists."
 
+            # --- TEMP: bootstrap admin on first request (works on Neon too) ---
+@app.before_first_request
+def _bootstrap_admin_if_missing():
+    try:
+        with app.app_context():
+            db.create_all()  # ensure tables exist on Neon/Postgres
+            if not User.query.filter_by(username="admin").first():
+                u = User(username="admin", role="admin", is_admin=True)
+                u.set_password("StrongPass123!")
+                db.session.add(u)
+                db.session.commit()
+                print("✅ Bootstrap: admin user created.")
+            else:
+                print("ℹ️ Bootstrap: admin already exists.")
+    except Exception as e:
+        # Don't crash the app if bootstrap fails; check logs on Render
+        print("⚠️ Bootstrap error:", e)
+
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
