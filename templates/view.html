@@ -1,0 +1,24 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="invoice">
+  <h2 style="text-align:center">كهرباء خربة قنافار</h2>
+  <div class="grid" style="color:black">
+    <div>رقم الفاتورة: <strong>{{ inv.invoice_number }}</strong></div>
+    <div>عن شهر: <strong>{{ inv.date.strftime('%Y-%m-%d') }}</strong></div>
+    <div>المشترك: <strong>{{ inv.customer_name }}</strong></div>
+    <div>رقم العداد: <strong>{{ inv.meter_number }}</strong></div>
+    <div>رقم الشعبة: <strong>{{ inv.branch_number }}</strong></div>
+    <div>اشتراك: <strong>{{ inv.subscription_amps }}</strong> أمبير</div>
+    <div>العداد السابق: <strong>{{ inv.prev_reading }}</strong></div>
+    <div>العداد الحالي: <strong>{{ inv.curr_reading }}</strong></div>
+    <div>مصروف كيلواط (kWh): <strong>{{ inv.kwh_used }}</strong></div>
+    <div>سعر الكيلواط: <strong>{{ inv.unit_price|money }}</strong></div>
+    <div>تكلفة الطاقة: <strong>{{ '%.2f'|format(inv.energy_cost) }}</strong></div>
+    <div>رسوم الاشتراك: <strong>{{ '%.2f'|format(inv.subscription_fee) }}</strong></div>
+    <div>التكلفة لهذا الشهر: <strong>{{ '%.2f'|format(inv.month_cost) }}</strong></div>
+    <div class="total">المجموع الإجمالي: <strong>{{ '%.2f'|format(inv.total_due) }}</strong></div>
+  </div>
+  <p><a href="{{ url_for('index') }}">رجوع</a> | <a href="{{ url_for('edit_invoice', invoice_id=inv.id) }}">تحرير</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,233 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h1>الفواتير</h1>
+
+<!-- TWO-ROW TOOLBAR -->
+<div class="toolbar-2rows">
+  <!-- Row 1: Date filter only -->
+  <div class="tb-row tb-date" dir="rtl">
+    <div class="date-bar">
+      <div class="chips">
+        <button type="button" class="chip" data-range="this-month" style="background-color:#6179e4;">هذا الشهر</button>
+        <button type="button" class="chip" data-range="last-month" style="background-color:#6179e4;">الشهر الماضي</button>
+      </div>
+      <div class="inputs">
+        <input type="date" id="start" value="{{ start or '' }}">
+        <span class="dash">—</span>
+        <input type="date" id="end"   value="{{ end or '' }}">
+      </div>
+    </div>
+	<select id="status">
+      <option value="">الكل</option>
+      <option value="unpaid">غير مدفوع</option>
+      <option value="paid">مدفوع</option>
+    </select>
+    <input type="text" id="q" placeholder="بحث بالاسم أو الشعبة" value="{{ q or '' }}" style="min-width:220px">
+<button type="button" id="apply-search" class="btn">تطبيق</button>
+
+  </div>
+ 
+  <!-- Row 2: Other actions -->
+  <div class="tb-row tb-actions" dir="rtl">
+    <a class="btn" href="{{ url_for('report') }}">تقرير</a>
+    <a class="btn" href="{{ url_for('import_branches_xlsx') }}">استيراد</a>
+    <a class="btn" href="{{ url_for('new_invoice') }}">+ فاتورة جديدة</a>
+    <a class="btn" href="{{ url_for('index') }}">مسح الفلاتر</a>
+
+   
+    
+    <a class="btn" id="xlsx" href="{{ url_for('export_invoices', format='xlsx') }}">تصدير Excel</a>
+    <a class="btn" id="print-all" href="#">طباعة الكل </a>
+
+    <button type="submit" form="bulkDeleteForm" id="btn-bulk-del" class="btn danger" disabled onclick="return confirm('حذف الفواتير المحددة؟ لا يمكن التراجع.')">حذف المحدد</button>
+  </div>
+</div>
+
+<form id="bulkDeleteForm" method="post" action="{{ url_for('bulk_delete_invoices') }}">
+<table id="tbl" class="table-sticky table-zebra" style="width:100%">
+  <thead>
+    <tr>
+      <th><input type="checkbox" id="select-all"></th><th>ID</th><th>رقم الفاتورة</th><th>التاريخ</th><th>المشترك</th><th>الشعبة</th>
+      <th>العداد السابق</th><th>العداد الحالي</th><th>kWh</th><th>الإجمالي</th><th>مدفوع؟</th><th>إجراءات</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for i in invoices %}
+    <tr data-paid="{{ 1 if i.is_paid else 0 }}" data-text="{{ (i.customer_name or '') ~ ' ' ~ (i.branch_number or '') }}">
+      <td><input type="checkbox" name="invoice_ids" value="{{ i.id }}" class="row-check"></td>
+      <td>{{ i.id }}</td>
+      <td><span class="badge">{{ i.invoice_number }}</span></td>
+      <td>{{ i.date.strftime('%Y-%m-%d') if i.date }}</td>
+      <td>{{ i.customer_name }}</td>
+      <td>{{ i.branch_number }}</td>
+      <td>{{ i.prev_reading }}</td>
+      <td>{{ i.curr_reading }}</td>
+      <td>{{ i.kwh_used }}</td>
+      <td>{{ i.total_due|money }}</td>
+      <td>
+        <form method="post" action="{{ url_for('toggle_paid', invoice_id=i.id) }}">
+          <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" style="display: none;" onchange="this.form.submit()" {% if i.is_paid %}checked{% endif %}>
+            <span>{% if i.is_paid %}<p style="color:#16a34a;"> مدفوع </p> {% else %}<p style="color:#ff205a;" >غير مدفوع </p>{% endif %}</span>
+          </label>
+        </form>
+      </td>
+      <td style="white-space:nowrap">
+        <a class="no-row" href="{{ url_for('view_invoice', invoice_id=i.id) }}">عرض</a> |
+        <a class="no-row" href="{{ url_for('invoice_print', invoice_id=i.id) }}" target="_blank" rel="noopener">طباعة</a> |
+       <!-- <a  class="no-row" href="{{ url_for('invoice_pdf',   invoice_id=i.id) }}" target="_blank" rel="noopener">تحميل PDF</a> | -->
+		  <a class="no-row" href="{{ url_for('edit_invoice', invoice_id=i.id) }}">تعديل</a> |
+  <form method="post" action="{{ url_for('delete_invoice', invoice_id=i.id) }}"
+        style="display:inline" onsubmit="return confirm('حذف الفاتورة؟ لا يمكن التراجع.');">
+    <button Style="background-color:red;" type="submit" class="link danger">حذف</button>
+  </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</form>
+
+<style>
+/* two-row layout */
+.toolbar-2rows{display:grid;grid-template-columns:1fr;row-gap:12px;margin:10px 0}
+.tb-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.tb-date{justify-content:flex-start}
+
+/* date bar styles */
+.date-bar{display:flex;align-items:center;gap:10px;background:#f4f6fa;border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px}
+.date-bar .chips{display:flex;gap:6px}
+.date-bar .chip{border:0;border-radius:999px;padding:6px 12px;cursor:pointer;background:#e7ebfb}
+.date-bar .chip:hover{background:#dbe3ff}
+.date-bar .inputs{display:flex;align-items:center;gap:6px;background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:4px 8px}
+.date-bar input[type="date"]{border:0;outline:0;background:transparent;padding:4px 2px}
+.date-bar .dash{opacity:.6}
+</style>
+
+<script>
+(function(){
+  // ---------- helpers ----------
+  const pad=n=>String(n).padStart(2,'0');
+  const toISO=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  const firstOfMonth=d=>new Date(d.getFullYear(), d.getMonth(), 1);
+  const lastOfMonth =d=>new Date(d.getFullYear(), d.getMonth()+1, 0);
+  const params = new URLSearchParams(location.search);
+
+  function navigateAll(){
+    const url = new URL(location.href);
+    const s = startEl.value.trim();
+    const e = endEl.value.trim();
+    const q = qEl.value.trim();
+    const st = statusEl.value.trim();
+
+    // keep start<=end if both present
+    let s2 = s, e2 = e;
+    if (s2 && e2 && s2 > e2) { const t=s2; s2=e2; e2=t; }
+
+    if (s2) url.searchParams.set('start', s2); else url.searchParams.delete('start');
+    if (e2) url.searchParams.set('end',   e2); else url.searchParams.delete('end');
+    if (q)  url.searchParams.set('q', q);     else url.searchParams.delete('q');
+    if (st) url.searchParams.set('status', st); else url.searchParams.delete('status');
+
+    location.href = url.toString();
+  }
+
+  function setThisMonth(navigate){
+    const t=new Date();
+    startEl.value = toISO(firstOfMonth(t));
+    endEl.value   = toISO(lastOfMonth(t));
+    if (navigate) navigateAll();
+  }
+  function setLastMonth(navigate){
+    const t=new Date(), lm=new Date(t.getFullYear(), t.getMonth()-1, 1);
+    startEl.value = toISO(firstOfMonth(lm));
+    endEl.value   = toISO(lastOfMonth(lm));
+    if (navigate) navigateAll();
+  }
+
+  // ---------- wire up ----------
+  const startEl  = document.getElementById('start');
+  const endEl    = document.getElementById('end');
+  const statusEl = document.getElementById('status');
+  const qEl      = document.getElementById('q');
+
+  // initialize from URL in case server didn't set selected
+  const stFromURL = params.get('status');
+  if (stFromURL !== null) statusEl.value = stFromURL;
+  const qFromURL = params.get('q');
+  if (qFromURL && !qEl.value) qEl.value = qFromURL;
+
+  // default to this month if both dates empty AND no start/end in URL
+  if (!params.has('start') && !params.has('end') && !startEl.value && !endEl.value) {
+    setThisMonth(false);
+  }
+
+// apply search only when clicking the button or pressing Enter
+const applyBtn = document.getElementById('apply-search');
+if (applyBtn) applyBtn.addEventListener('click', navigateAll);
+
+qEl.addEventListener('keydown', function(e){
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    navigateAll();
+  }
+});
+
+// quick range chips just fill dates, don’t auto-search
+document.querySelectorAll('.date-bar .chip').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const r = btn.getAttribute('data-range');
+    if (r==='this-month') setThisMonth(false);
+    if (r==='last-month') setLastMonth(false);
+  });
+});
+
+
+  // quick range chips
+  document.querySelectorAll('.date-bar .chip').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const r = btn.getAttribute('data-range');
+      if (r==='this-month') setThisMonth(true);
+      if (r==='last-month') setLastMonth(true);
+    });
+  });
+
+  // Print All handler
+  const printAllBtn = document.getElementById("print-all");
+  if (printAllBtn) {
+    printAllBtn.addEventListener("click", function(ev){
+      ev.preventDefault();
+      const start = document.getElementById("start")?.value;
+      let month = "{{ this_month }}";
+      if (start && /^\d{4}-\d{2}-\d{2}$/.test(start)) {
+        month = start.slice(0,7);
+      }
+      const url = "{{ url_for('print_all_invoices') }}" + "?month=" + month;
+      window.open(url, "_blank");
+    });
+  }
+
+  // keep row action links clickable
+  document.querySelectorAll('a.no-row').forEach(a=>a.addEventListener('click', ev=>ev.stopPropagation()));
+})();
+
+// --- Bulk delete selection handling ---
+const selectAll = document.getElementById('select-all');
+const checks = document.querySelectorAll('.row-check');
+const btnBulk = document.getElementById('btn-bulk-del');
+function updateBulkBtn(){
+  const any = Array.from(checks).some(c => c.checked);
+  if (btnBulk){ btnBulk.disabled = !any; }
+}
+if (selectAll){
+  selectAll.addEventListener('change', () => {
+    checks.forEach(c => { c.checked = selectAll.checked; });
+    updateBulkBtn();
+  });
+}
+checks.forEach(c => c.addEventListener('change', updateBulkBtn));
+updateBulkBtn();
+
+</script>
+{% endblock %}

@@ -1,0 +1,125 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h1>المصاريف</h1>
+
+<form method="post" class="card formgrid" style="grid-template-columns: repeat(4, minmax(160px, 1fr)); gap:12px">
+  <label>
+    <span>التاريخ</span>
+    <input type="date" name="date" value="{{ (now or None) and now.strftime('%Y-%m-%d') or '' }}">
+  </label>
+  <label>
+    <span>النوع</span>
+    <select name="type" required>
+      <option value="fuel">وقود</option>
+      <option value="maintenance">صيانة</option>
+      <option value="other">أخرى</option>
+    </select>
+  </label>
+  <label>
+    <span>التكلفة</span>
+    <input type="number" step="0.01" min="0" name="cost" required>
+  </label>
+  <label>
+    <span>اللترات (للوقود فقط)</span>
+    <input type="number" step="0.01" min="0" name="litres">
+  </label>
+  <label style="grid-column: 1 / -1">
+    <span>الوصف</span>
+    <input type="text" name="description" placeholder="وصف اختياري ...">
+  </label>
+  <div style="grid-column: 1 / -1">
+    <button class="btn" type="submit">إضافة</button>
+  </div>
+</form>
+
+<div class="card" style="margin-top:16px">
+  <div style="display:flex; justify-content:space-between; align-items:center">
+    <h2 style="margin:0">السجل</h2>
+    <div class="muted">إجمالي التكلفة: <strong>{{ '%.2f'|format(total or 0) }}</strong></div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>التاريخ</th>
+        <th>النوع</th>
+        <th>التكلفة</th>
+        <th>اللترات</th>
+        <th>الوصف</th>
+        <th>إجراء</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in expenses %}
+      <tr>
+        <td>{{ e.id }}</td>
+        <td>{{ e.date.strftime('%Y-%m-%d') }}</td>
+        <td>
+          {% if e.type == 'fuel' %}وقود{% elif e.type == 'maintenance' %}صيانة{% else %}أخرى{% endif %}
+        </td>
+        <td>{{ '%.2f'|format(e.cost or 0) }}</td>
+        <td>{{ e.litres is not none and ('%.2f'|format(e.litres)) or '-' }}</td>
+        <td style="text-align:right">{{ e.description or '' }}</td>
+        <td>
+          <form method="post" action="{{ url_for('delete_expense', expense_id=e.id) }}" onsubmit="return confirm('حذف المصروف؟');">
+            <button class="btn" type="submit">حذف</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2 style="margin-top:0">الرسوم البيانية للمصاريف</h2>
+  <div id="expensesByType" class="chart" style="height:320px"></div>
+  <div id="expensesByDay" class="chart" style="height:320px; margin-top:16px"></div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script>
+    async function loadExpenses(){
+      const url = new URL("{{ url_for('api_expenses_summary') }}", window.location.origin);
+      const res = await fetch(url);
+      const data = await res.json();
+
+      // Pie by type
+      const pie = echarts.init(document.getElementById('expensesByType'));
+      pie.setOption({
+        tooltip: { trigger: 'item' },
+        legend: { top: 'bottom' },
+        series: [{
+          type: 'pie',
+          radius: ['30%', '70%'],
+          itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 1 },
+          data: [
+            { value: data.by_type.fuel || 0, name: 'وقود' },
+            { value: data.by_type.maintenance || 0, name: 'صيانة' },
+            { value: data.by_type.other || 0, name: 'أخرى' }
+          ]
+        }]
+      });
+
+      // Line by day
+      const days = data.by_day.map(x => x.date);
+      const totals = data.by_day.map(x => x.total);
+      const line = echarts.init(document.getElementById('expensesByDay'));
+      line.setOption({
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'category', data: days },
+        yAxis: { type: 'value' },
+        series: [{ name: 'إجمالي المصاريف', type: 'line', smooth: true, data: totals }]
+      });
+    }
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', loadExpenses);
+    }else{
+      loadExpenses();
+    }
+  </script>
+{% endblock %}

@@ -1,0 +1,8 @@
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Werkzeug==3.0.3
+SQLAlchemy
+gunicorn
+psycopg2-binary    # فقط لو حتستعمل Postgres
+qrcode             # لو احتجته

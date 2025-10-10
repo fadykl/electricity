@@ -1,0 +1,27 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div style="text-align:center; margin-bottom:20px;">
+  <img src="{{ url_for('static', filename='LOGO.jpg') }}" alt="Logo" style="max-height:150px;">
+</div>
+<div style="text-align:center; font-size:2em; color:#000000; margin:10px 0; font-weight:bold;">
+  كهرباء خربة قنافار
+</div>
+<div style="text-align:center; font-size:2em; color:#000000; margin:10px 0; font-weight:bold;">
+  تسجيل الدخول
+</div>
+<div class="white-surface" style="border-radius:12px; padding:0px; margin: 10px auto; text-aling:center;">
+<form method="post" class="formgrid" style="max-width:420px; margin: 40px auto; text-aling:center;">
+  <label>اسم المستخدم
+    <input name="username" required>
+  </label>
+  <label>كلمة المرور
+    <input name="password" type="password" required>
+  </label>
+  <div class="actions">
+    <button type="submit">دخول</button>
+  </div>
+
+</form>
+</div>
+{% endblock %}

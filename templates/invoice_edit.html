@@ -1,0 +1,86 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h1>تعديل الفاتورة</h1>
+<form method="post" class="card" dir="rtl" style="max-width:760px">
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:12px">
+    <label>التاريخ
+      <input type="date" name="date" value="{{ i.date.strftime('%Y-%m-%d') if i.date }}">
+    </label>
+    <label>رقم الشعبة
+      <input type="text" name="branch_number" value="{{ i.branch_number }}">
+    </label>
+    <label>اسم المشترك
+      <input type="text" name="customer_name" value="{{ i.customer_name }}">
+    </label>
+    <label>رقم العداد
+      <input type="text" name="meter_number" value="{{ i.meter_number or '' }}">
+    </label>
+    <label>الأمبير
+      <input type="number" name="subscription_amps" value="{{ i.subscription_amps or 0 }}" step="1">
+    </label>
+    <label>العداد السابق
+      <input type="number" name="prev_reading" value="{{ i.prev_reading or 0 }}" step="1">
+    </label>
+    <label>العداد الحالي
+      <input type="number" name="curr_reading" value="{{ i.curr_reading or 0 }}" step="1">
+    </label>
+    <label>سعر الكيلوواط (unit_price)
+      <input type="number" name="unit_price" value="{{ i.unit_price or 0 }}" step="0.0001">
+    </label>
+    <label>رسم الاشتراك الشهري
+      <input type="number" name="subscription_fee" value="{{ i.subscription_fee or 0 }}" step="0.01">
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:6px">
+      <input type="checkbox" name="is_paid" {% if i.is_paid %}checked{% endif %}>
+      <span>مدفوع</span>
+    </label>
+  </div>
+
+  <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn primary" type="submit">حفظ</button>
+    <a class="btn" href="{{ url_for('view_invoice', invoice_id=i.id) }}">رجوع</a>
+    <form method="post" action="{{ url_for('delete_invoice', invoice_id=i.id) }}" onsubmit="return confirm('حذف الفاتورة؟ لا يمكن التراجع.');">
+      <button class="btn danger" type="submit">حذف</button>
+    </form>
+  </div>
+</form>
+
+<script>
+(function(){
+  async function loadPricing(){
+    try{
+      const res = await fetch("{{ url_for('api_pricing_latest') }}", {credentials:'same-origin'});
+      if(!res.ok) return null;
+      return await res.json();
+    }catch(e){ return null; }
+  }
+  function updateFromAmps(pricing){
+    const ampsEl = document.querySelector('[name="subscription_amps"]');
+    const unitEl = document.querySelector('[name="unit_price"]');
+    const feeEl  = document.querySelector('[name="subscription_fee"]');
+    if(!ampsEl) return;
+    const amps = parseInt(ampsEl.value || '0', 10);
+    if(pricing){
+      // Always set unit price from pricing page
+      if(unitEl) unitEl.value = Number(pricing.unit_price || 0).toFixed(2);
+      // Set subscription fee based on selected amps
+      const fees = pricing.fees || {};
+      const key = String(amps);
+      const fee = Number(fees[key] || 0);
+      if(feeEl) feeEl.value = fee.toFixed(2);
+    }
+  }
+  document.addEventListener('DOMContentLoaded', async function(){
+    const pricing = await loadPricing();
+    updateFromAmps(pricing);
+    const ampsEl = document.querySelector('[name="subscription_amps"]');
+    if(ampsEl){
+      ampsEl.addEventListener('input', function(){ updateFromAmps(pricing); });
+      ampsEl.addEventListener('change', function(){ updateFromAmps(pricing); });
+    }
+  });
+})();
+</script>
+
+{% endblock %}

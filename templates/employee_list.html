@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>قائمة الموظف</h1>
+<!-- شريط أدوات: مربع بحث يرشّح حسب الاسم أو الشعبة -->
+<form method="get" action="{{ url_for('index') }}">
+<div class="toolbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0">
+<input id="q" placeholder="بحث بالاسم أو الشعبة" style="min-width:260px" type="search" value="{{ q or '' }}"/>
+        <select name="status" id="status" style="min-width:160px">
+          <option value="">كل الحالات</option>
+          <option value="unpaid" {{ 'selected' if (status or '')=='unpaid' else '' }}>غير مدفوع</option>
+          <option value="paid" {{ 'selected' if (status or '')=='paid' else '' }}>مدفوع</option>
+        </select>
+        <input id="ym" name="ym" type="month" value="{{ ym or '' }}" style="min-width:160px"/>
+        <button class="btn" type="submit">تطبيق</button>
+        <a class="btn" href="{{ url_for('index') }}">مسح الفلاتر</a>
+    
+</div>
+</form>
+<table class="table-sticky table-zebra" id="tbl" style="width:100%">
+<thead>
+<tr>
+<th>الشعبة</th>
+<th>الاسم</th>
+<th>آخر قراءة</th>
+<th>إضافة</th>
+<th>التاريخ</th>
+<th>kWh</th>
+<th>المبلغ</th>
+<th>الدفع</th>
+</tr>
+</thead>
+<tbody>
+  {% for i in rows %}
+    {% set paid = (i.is_paid is true) or (i.is_paid|int == 1) or ((i.is_paid ~ '')|lower in ['1','true','t','yes','y']) %}
+    <tr data-text="{{ (i.branch_number or '') ~ ' ' ~ (i.customer_name or '') }}">
+<td>{{ i.branch_number }}</td>
+<td>{{ i.customer_name }}</td>
+<td>{{ i.curr_reading }}</td>
+<td>
+<form action="{{ url_for('employee_quick_create') }}" method="post">
+<input name="branch_number" type="hidden" value="{{ i.branch_number }}"/>
+<input min="{{ i.curr_reading or 0 }}" name="curr_reading" placeholder="القراءة الحالية" required="" style="max-width:160px" type="number"/>
+<button class="btn" type="submit">إضافة</button>
+</form>
+</td>
+<td>{{ i.date.strftime('%Y-%m-%d') if i.date else '' }}</td>
+<td>{{ i.kwh_used }}</td>
+<td>{{ '%.2f' % (i.total_due or 0) }}</td>
+<td>
+        {% if paid %}
+          <button class="btn" disabled="" type="button">مدفوع</button>
+        {% else %}
+          <form action="{{ url_for('mark_paid', invoice_id=i.id) }}" class="mark-paid-form" method="post" style="display:inline">
+<button class="btn danger" onclick="return confirm('هل أنت متأكد أنك تريد تغيير الحالة إلى مدفوع؟');" type="submit">غير مدفوع</button>
+</form>
+        {% endif %}
+      </td>
+</tr>
+  {% endfor %}
+  </tbody>
+</table>
+<script>
+(function(){
+  const q = document.getElementById('q');
+  const rows = Array.from(document.querySelectorAll('#tbl tbody tr'));
+  function apply(){
+    const v = (q.value || '').trim().toLowerCase();
+    rows.forEach(tr => {
+      const txt = (tr.dataset.text || '').toLowerCase();
+      tr.style.display = (!v || txt.includes(v)) ? '' : 'none';
+    });
+  }
+  q.addEventListener('input', apply);
+  apply();
+})();
+</script>
+
+{% endblock %}

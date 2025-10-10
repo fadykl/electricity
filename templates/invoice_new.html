@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>فاتورة جديدة</h1>
+
+
+<form method="post" class="formgrid">
+  <label>التاريخ <input type="date" name="date" value="{{ today }}" required></label>
+  <label>اسم المشترك <input name="customer_name"></label>
+  <label>رقم العداد <input name="meter_number"></label>
+  <label>رقم الشعبة <input name="branch_number" required></label>
+  <label>اشتراك (أمبير) <input type="number" name="subscription_amps" min="0"></label>
+  <label>العداد السابق <input type="number" name="prev_reading" min="0"></label>
+  <label>العداد الحالي <input type="number" name="curr_reading" min="0" value="0" required></label>
+  <label>سعر الكيلواط <input type="number" step="0.01" name="unit_price" value="{{ default_unit }}"></label>
+  <label>رسوم الاشتراك <input type="number" step="0.01" name="subscription_fee"></label>
+  <label style="display:inline-flex;align-items:center;gap:6px;margin-inline-start:8px;">
+    <input type="checkbox" name="is_paid" value="1" >
+    مدفوع
+  </label>
+
+  <div class="actions" ><button type="submit" style="background-color:#16a34a;">حفظ</button></div>
+{% if last %}
+<p class="muted" style="margin-top:8px">آخر فاتورة للشعبة {{ last.branch_number }}: {{ last.invoice_number }} بتاريخ {{ last.date }} (قراءة: {{ last.curr_reading }})</p>
+{% endif %}
+
+<script>
+(function(){
+  async function loadPricing(){
+    try{
+      const res = await fetch("{{ url_for('api_pricing_latest') }}", {credentials:'same-origin'});
+      if(!res.ok) return null;
+      return await res.json();
+    }catch(e){ return null; }
+  }
+  function ensureUnitFromPricing(pricing){
+    const unitEl = document.querySelector('[name="unit_price"]');
+    if(pricing && unitEl){
+      const current = Number(unitEl.value || 0);
+      // Always enforce the current pricing (or only if empty/zero — change to 'current <= 0' to allow manual override)
+      unitEl.value = Number(pricing.unit_price || 0).toFixed(2);
+    }
+  }
+  function updateFromAmps(pricing){
+    const ampsEl = document.querySelector('[name="subscription_amps"]');
+    const unitEl = document.querySelector('[name="unit_price"]');
+    const feeEl  = document.querySelector('[name="subscription_fee"]');
+    if(!ampsEl) return;
+    const amps = parseInt(ampsEl.value || '0', 10);
+    if(pricing){
+      // Always set unit price from pricing page
+      if(unitEl) unitEl.value = Number(pricing.unit_price || 0).toFixed(2);
+      // Set subscription fee based on selected amps
+      const fees = pricing.fees || {};
+      const key = String(amps);
+      const fee = Number(fees[key] || 0);
+      if(feeEl) feeEl.value = fee.toFixed(2);
+    }
+  }
+  document.addEventListener('DOMContentLoaded', async function(){
+    const pricing = await loadPricing();
+    updateFromAmps(pricing);
+    ensureUnitFromPricing(pricing);
+    const ampsEl = document.querySelector('[name="subscription_amps"]');
+    if(ampsEl){
+      ampsEl.addEventListener('input', function(){ updateFromAmps(pricing); ensureUnitFromPricing(pricing); });
+      ampsEl.addEventListener('change', function(){ updateFromAmps(pricing); ensureUnitFromPricing(pricing); });
+    }
+    const prevEl = document.querySelector('[name="prev_reading"]');
+    const currEl = document.querySelector('[name="curr_reading"]');
+    if(prevEl){ prevEl.addEventListener('input', function(){ ensureUnitFromPricing(pricing); }); }
+    if(currEl){ currEl.addEventListener('input', function(){ ensureUnitFromPricing(pricing); }); }
+  });
+})();
+</script>
+
+{% endblock %}

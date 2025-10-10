@@ -1,0 +1,64 @@
+html, body, .container, .white-surface, .emp-card, .toolbar, .stats, .stat, table, td, th,
+.badge, .kpi, .kpi .kv, .amount, .title, .cta, .topbar, .topbar a, .topbar span,
+input, select, button { color: #111 !important; }
+.badge.paid, .badge.unpaid { color: #111 !important; }
+
+/* Remove row hover background but preserve zebra colors */
+.table-zebra tbody tr:hover { background: none !important; background-color: transparent !important; }
+
+/* Reapply the base colors on hover so stripes don't disappear */
+.table-zebra tbody tr:nth-child(odd):hover  { background-color: #fff !important; }
+.table-zebra tbody tr:nth-child(even):hover { background-color: #fafafa !important; }
+
+/* Belt & suspenders: neutralize any generic hover rules */
+.white-surface table tr:hover,
+table tr:hover { background: none !important; }
+button[disabled] { opacity: .5; cursor: not-allowed; }
+/* Make disabled-looking buttons clear; optional */
+button[disabled], input[type="checkbox"][disabled] { opacity: .6; cursor: not-allowed; }
+
+/* Keep zebra stripe hover neutral (if you prefer no highlight) */
+.table-zebra tbody tr:hover { background: none !important; }
+.table-zebra tbody tr:nth-child(odd):hover  { background-color: #fff !important; }
+.table-zebra tbody tr:nth-child(even):hover { background-color: #fafafa !important; }
+/* ===== Top-center popup positioning ===== */
+.mp-hidden { display: none !important; }
+
+/* Keep the overlay container, but don't center with grid anymore */
+.mp-modal{
+  position: fixed;
+  inset: 0;
+  display: block;              /* override previous display:grid */
+  z-index: 9999;
+}
+
+/* Dim the page (set to transparent if you don't want dimming) */
+.mp-backdrop{
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.25); /* use 'transparent' if you don't want a dim backdrop */
+}
+
+/* The popup card itself — top center */
+.mp-card{
+  position: absolute;
+  top: clamp(16px, 6vh, 64px);           /* middle-top; tweak as you like */
+  left: 50%;
+  transform: translateX(-50%);           /* center horizontally */
+  width: min(520px, calc(100% - 32px));
+  background: #fff;
+  color: #111;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  animation: mpDrop 160ms ease-out;
+}
+
+/* Nice drop-in animation from the top */
+@keyframes mpDrop{
+  from { transform: translate(-50%, -12px); opacity: 0; }
+  to   { transform: translate(-50%,   0px); opacity: 1; }
+}
+
+/* Optional: prevent page scroll while popup is open */
+body.mp-open { overflow: hidden; }

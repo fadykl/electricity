@@ -1,0 +1,24 @@
+# Python cache and environment
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+venv/
+
+# Local database (we don’t want to upload invoices.db)
+*.sqlite
+*.sqlite3
+invoices.db
+
+# OS / IDE junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs, exports, and zip backups
+*.log
+*.zip
+*.bak

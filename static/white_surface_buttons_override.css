@@ -1,0 +1,18 @@
+
+/* Button color on white blocks (non-primary) */
+.white-surface .btn:not(.primary),
+.white-surface button:not(.primary){
+  background:#ffffff !important;
+  color:#0f172a !important;
+  border:1px solid #e5e7eb !important;
+  box-shadow:none !important;
+}
+
+/* Keep primary buttons as-is (e.g., green search) */
+.white-surface .btn.primary,
+.white-surface button.primary{
+  /* no change here unless you want a different scheme */
+}
+
+/* Also ensure links styled as buttons inherit black */
+.white-surface a.btn:not(.primary){ color:#0f172a !important; }

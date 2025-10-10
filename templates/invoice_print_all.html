@@ -1,0 +1,85 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="no-print" style="margin:10px 0; text-align:center;">
+  <button onclick="window.print()" class="btn">طباعة</button>
+  <a href="{{ url_for('index') }}" class="btn">العودة</a>
+</div>
+
+<style>
+  @page { size: A4 portrait; margin: 10mm; }
+  :root{ --border:#e2e8f0; --muted:#475569; --accent:#111827; }
+  .brand{
+    text-align:center; margin-bottom:8px; font-weight:700; letter-spacing:1px;
+    font-size:18px; color:var(--accent);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-gap: 7mm;
+  }
+  .invoice-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6mm 6mm 4mm;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    page-break-inside: avoid;
+    height: 86mm; /* 6 cards on A4: 2x3 */
+  }
+  .hdr{
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;
+    border-bottom:1px dashed var(--border); padding-bottom:2mm;
+  }
+  .hdr .invno{ font-weight:700; }
+  .hdr .date{ color:var(--muted); font-size:12px; }
+  .row { display:flex; gap:8px; margin: 2px 0; }
+  .row .label{ min-width:110px; color:var(--muted); }
+  .row .value{ font-weight:600; }
+  .total{
+    margin-top:4px; padding-top:3px; border-top:1px dashed var(--border);
+    display:flex; justify-content:space-between; font-size:14px;
+  }
+  .page-break { page-break-after: always; }
+  @media print { .no-print { display: none !important; } body{ background:#fff; } }
+</style>
+
+<div class="brand" dir="rtl">كهرباء خربة قنافار</div>
+<h3 style="text-align:center; margin:0 0 6px;" dir="rtl">فواتير شهر {{ month }}</h3>
+
+{% set per_page = 6 %}
+{% for chunk_start in range(0, invoices|length, per_page) %}
+  <div class="grid">
+    {% for i in invoices[chunk_start:chunk_start+per_page] %}
+      {% set kwh = i.kwh_used or ((i.curr_reading or 0) - (i.prev_reading or 0)) %}
+      {% set energy = i.energy_cost or ((kwh|float) * (i.unit_price or 0)) %}
+      {% set sub = i.subscription_fee or 0 %}
+      {% set total = (i.total_due if i.total_due is not none else (energy + sub)) %}
+      <div class="invoice-card" dir="rtl">
+        <div class="hdr">
+          <div class="invno">رقم الفاتورة: {{ i.invoice_number }}</div>
+          <div class="date">{{ i.date }}</div>
+        </div>
+        <div class="row"><div class="label">المشترك:</div><div class="value">{{ i.customer_name }}</div></div>
+        <div class="row"><div class="label">الشعبة:</div><div class="value">{{ i.branch_number }}</div></div>
+
+        <div class="row"><div class="label">العداد السابق:</div><div class="value">{{ i.prev_reading }}</div></div>
+        <div class="row"><div class="label">العداد الحالي:</div><div class="value">{{ i.curr_reading }}</div></div>
+        <div class="row"><div class="label">kWh:</div><div class="value">{{ kwh }}</div></div>
+
+        <div class="row"><div class="label">سعر الكيلوواط:</div><div class="value">{{ i.unit_price|money_both }}</div></div>
+        <div class="row"><div class="label">قيمة الاستهلاك:</div><div class="value">{{ energy|money_both }}</div></div>
+        <div class="row"><div class="label">الاشتراك:</div><div class="value">{{ sub|money_both }}</div></div>
+
+        <div class="total"><div>الإجمالي</div><div>{{ total|money_both }}</div></div>
+      </div>
+    {% endfor %}
+  </div>
+  {% if (chunk_start + per_page) < (invoices|length) %}
+    <div class="page-break"></div>
+  {% endif %}
+{% endfor %}
+
+{% if invoices|length == 0 %}
+  <p style="text-align:center; padding:20px;">لا توجد فواتير لهذا الشهر.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,5 @@
+xhtml2pdf
+qrcode
+pillow
+openpyxl
+requests

@@ -1,0 +1,6 @@
+
+.white-surface{background:#fff!important;color:#0f172a!important}
+.white-surface *{color:#0f172a!important}
+.white-surface ::placeholder{color:#6b7280!important;opacity:1}
+.white-surface input,.white-surface select,.white-surface textarea{background:#fff!important;border:1px solid #e5e7eb!important}
+@media print{ .white-surface, .white-surface *{ color:#000 !important } }

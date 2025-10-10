@@ -1,0 +1,23 @@
+/* --- Employee cards UI (added) --- */
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.toolbar input[type="text"]{padding:.5rem .75rem;border:1px solid #ddd;border-radius:8px;min-width:220px}
+.toolbar select{padding:.5rem .75rem;border:1px solid #ddd;border-radius:8px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:12px 0}
+.stat{background:#fff;border:1px solid #eee;border-radius:16px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.stat .v{font-size:1.25rem;font-weight:700}
+.emp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:12px 0}
+.emp-card{background:#fff;border:1px solid #eee;border-radius:16px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:transform .08s ease, box-shadow .2s}
+.emp-card:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.08)}
+.emp-card .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.emp-card .title{font-weight:700}
+.badge{display:inline-block;padding:.2rem .5rem;border-radius:9999px;font-size:.75rem;border:1px solid #ddd}
+.badge.paid{background:#eefbea;border-color:#c5f0c2}
+.badge.unpaid{background:#fff3f3;border-color:#ffc6c6}
+.kpis{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.kpi{background:#f9fafb;border:1px dashed #e5e7eb;border-radius:10px;padding:.5rem .6rem}
+.kpi .kv{font-weight:700}
+.card-footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.amount{font-weight:800}
+.table-sticky thead th{position:sticky;top:0;background:#fff}
+.table-zebra tbody tr:nth-child(even){background:#fafafa}
+/* --- End Employee cards UI --- */

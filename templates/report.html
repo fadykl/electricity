@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>تقرير الفترة</h1>
+
+<form method="get" class="card" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px">
+  <div>
+    <label>من</label>
+    <input type="date" name="start" value="{{ start or '' }}">
+  </div>
+  <div>
+    <label>إلى</label>
+    <input type="date" name="end" value="{{ end or '' }}">
+  </div>
+  <button class="btn" type="submit">تطبيق</button>
+  <a class="btn" href="{{ url_for('report') }}">هذا الشهر</a>
+</form>
+
+<div class="card" style="display:grid; grid-template-columns: repeat(5,minmax(120px,1fr)); gap:12px; margin-bottom:12px">
+  <div><div class="muted">عدد الفواتير</div><div class="big">{{ total_invoices }}</div></div>
+  <div><div class="muted">مدفوعة</div><div class="big">{{ paid_count }}</div></div>
+  <div><div class="muted">غير مدفوعة</div><div class="big">{{ unpaid_count }}</div></div>
+  <div><div class="muted">إجمالي kWh</div><div class="big">{{ total_kwh }}</div></div>
+  <div><div class="muted">إجمالي المبالغ</div><div class="big">{{ "%.2f"|format(total_amount) }}</div></div>
+</div>
+
+<table class="table-sticky table-zebra" style="width:100%">
+  <thead>
+    <tr>
+      <th>التاريخ</th><th>رقم الفاتورة</th><th>المشترك</th><th>الشعبة</th><th>kWh</th><th>الإجمالي</th><th>حالة</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.date }}</td>
+      <td>{{ r.invoice_number }}</td>
+      <td>{{ r.customer_name }}</td>
+      <td>{{ r.branch_number }}</td>
+      <td>{{ r.kwh_used }}</td>
+      <td>{{ r.total_due|money }}</td>
+      <td>{% if r.is_paid %}مدفوع{% else %}غير مدفوع{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<style>
+.big{font-size:20px;font-weight:700}.muted{color:#6b7280;font-size:12px}
+</style>
+{% endblock %}

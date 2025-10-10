@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>عرض الفاتورة</h1>
+
+<div class="card" style="max-width:900px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div>
+      <div class="label">رقم الفاتورة</div>
+      <div class="val">{{ i.invoice_number }}</div>
+    </div>
+    <div>
+      <div class="label">التاريخ</div>
+      <div class="val">{{ i.date.strftime('%Y-%m-%d') if i.date }}</div>
+    </div>
+    <div>
+      <div class="label">الاسم</div>
+      <div class="val">{{ i.customer_name }}</div>
+    </div>
+    <div>
+      <div class="label">الشعبة</div>
+      <div class="val">{{ i.branch_number }}</div>
+    </div>
+    <div>
+      <div class="label">رقم العداد</div>
+      <div class="val">{{ i.meter_number }}</div>
+    </div>
+    <div>
+      <div class="label">الأمبير</div>
+      <div class="val">{{ i.subscription_amps }}</div>
+    </div>
+    <div>
+      <div class="label">قراءة سابقة</div>
+      <div class="val">{{ i.prev_reading }}</div>
+    </div>
+    <div>
+      <div class="label">قراءة حالية</div>
+      <div class="val">{{ i.curr_reading }}</div>
+    </div>
+    <div>
+      <div class="label">الاستهلاك (kWh)</div>
+      <div class="val">{{ i.kwh_used }}</div>
+    </div>
+    <div>
+      <div class="label">سعر الوحدة</div>
+      <div class="val">{{ i.unit_price|money_both }}</div>
+    </div>
+    <div>
+      <div class="label">قيمة الطاقة</div>
+      <div class="val">{{ i.energy_cost|money_both }}</div>
+    </div>
+    <div>
+      <div class="label">اشتراك شهري</div>
+      <div class="val">{{ i.subscription_fee|money_both }}</div>
+    </div>
+    <div>
+      <div class="label">الإجمالي</div>
+      <div class="val"><strong>{{ i.total_due|money_both }}</strong></div>
+    </div>
+    <div>
+      <div class="label">الحالة</div>
+      <div class="val">{{ 'مدفوع' if i.is_paid else 'غير مدفوع' }}</div>
+    </div>
+  </div>
+
+  <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap">
+    <a class="btn" href="{{ url_for('invoice_print', invoice_id=i.id) }}" target="_blank" rel="noopener">طباعة</a>
+    <a class="btn" href="{{ url_for('invoice_pdf', invoice_id=i.id) }}" target="_blank" rel="noopener">تحميل PDF</a>
+    <form method="post" action="{{ url_for('toggle_paid', invoice_id=i.id) }}" style="display:inline">
+      <button class="btn" type="submit">{% if i.is_paid %}إلغاء الدفع{% else %}تعليم كمدفوع{% endif %}</button>
+    </form>
+    <a class="btn" href="{{ url_for('index') }}">عودة</a>
+  </div>
+</div>
+
+<style>
+.label{font-size:12px;color:#6b7280;margin-bottom:4px}
+.val{font-size:14px}
+</style>
+{% endblock %}

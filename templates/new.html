@@ -1,0 +1,22 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h1>فاتورة جديدة</h1>
+<form method="post" class="formgrid">
+  <label>التاريخ <input type="date" name="date" value="{{ today }}" required></label>
+  <label>اسم المشترك <input name="customer_name"></label>
+  <label>رقم العداد <input name="meter_number"></label>
+  <label>رقم الشعبة <input name="branch_number" required></label>
+  <label>اشتراك (أمبير) <input type="number" name="subscription_amps" min="0"></label>
+  <label>العداد السابق <input type="number" name="prev_reading" min="0"></label>
+  <label>العداد الحالي <input type="number" name="curr_reading" min="0" value="0" required></label>
+  <label>سعر الكيلواط <input type="number" step="0.01" name="unit_price" value="0"></label>
+  <label>رسوم الاشتراك <input type="number" step="0.01" name="subscription_fee"></label>
+  <label style="display:inline-flex;align-items:center;gap:6px;margin-inline-start:8px;">
+    <input type="checkbox" name="is_paid" value="1" >
+    مدفوع
+  </label>
+
+  <div class="actions" ><button type="submit" style="background-color:#16a34a;">حفظ</button></div>
+</form>
+{% endblock %}

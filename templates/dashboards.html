@@ -1,0 +1,454 @@
+
+{% extends "base.html" %}
+
+{% block extra_head %}
+  <!-- Apache ECharts -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js">
+
+// Expenses section loader
+
+async function loadExpenses(){
+  try{
+    const url = new URL("{{ url_for('api_expenses_summary') }}", window.location.origin);
+    // pass month filter
+    var form = document.getElementById("dashFilterForm");
+    if(form){
+      var s = form.querySelector('input[name="start"]')?.value;
+      var e = form.querySelector('input[name="end"]')?.value;
+      if(s){ url.searchParams.set("start", s+"-01"); }
+      if(e){ url.searchParams.set("end", e+"-31"); }
+    }
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('Failed to load expenses');
+    const data = await res.json();
+    const byType = data.by_type || {};
+    const itemsByDay = Array.isArray(data.by_day) ? data.by_day : [];
+    const total = (byType.fuel||0) + (byType.maintenance||0) + (byType.other||0);
+    // Update KPIs
+    const fmt = (n)=> (Number(n||0)).toFixed(2);
+    document.getElementById('expTotal').textContent = fmt(total);
+    document.getElementById('expFuel').textContent = fmt(byType.fuel||0);
+    document.getElementById('expMaint').textContent = fmt(byType.maintenance||0);
+    document.getElementById('expOther').textContent = fmt(byType.other||0);
+    document.getElementById('expFuelLitres').textContent = fmt(data.fuel_litres||0);
+
+    // Build chart
+    const days = itemsByDay.map(d => d.date);
+    const totals = itemsByDay.map(d => (d.total||0));
+    var opt = baseOptions();
+    opt.title = { text: 'تطور المصاريف اليومية', left: 'center' };
+    opt.xAxis = { type: 'category', data: days };
+    opt.yAxis = { type: 'value' };
+    opt.series = [{ type: 'bar', name: 'إجمالي المصاريف', data: totals, smooth: true }];
+    makeChart('expensesChart', opt);
+  }catch(e){
+    console.error(e);
+  }
+}
+
+
+if (typeof initEcharts === 'function') {
+  // call after charts loaded
+  try { loadExpenses(); } catch(e){ console.error(e); }
+} else {
+  // if no init, call on DOMContentLoaded
+  if(document.readyState === 'loading'){document.addEventListener('DOMContentLoaded', loadExpenses);} else {loadExpenses();}
+}
+
+</script>
+{% endblock %}
+
+{% block content %}
+<h1>لوحة التحكم</h1>
+
+<form id="dashFilterForm" method="get" class="card" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px">
+  <div>
+    <label>الشهر</label>
+    <select id="monthPicker" class="input">
+      <option value="01">Jan</option>
+      <option value="02">Feb</option>
+      <option value="03">Mar</option>
+      <option value="04">Apr</option>
+      <option value="05">May</option>
+      <option value="06">Jun</option>
+      <option value="07">Jul</option>
+      <option value="08">Aug</option>
+      <option value="09">Sep</option>
+      <option value="10">Oct</option>
+      <option value="11">Nov</option>
+      <option value="12">Dec</option>
+    </select>
+  </div>
+  <div>
+    <label>السنة</label>
+    <select id="yearPicker" class="input"></select>
+  </div>
+  <input type="hidden" name="start" value="{{ start or '' }}">
+  <input type="hidden" name="end" value="{{ end or '' }}">
+  <a class="btn" href="{{ url_for('dashboards') }}">إعادة تعيين</a>
+</form>
+
+<!-- KPI cards -->
+<div class="cards">
+  <div class="card">
+    <div class="kpi-label">الشهر</div>
+    <div class="kpi-value">{{ latest.month or '-' }}</div>
+  </div>
+  <div class="card">
+    <div class="kpi-label">عدد الفواتير</div>
+    <div class="kpi-value">{{ latest.count }}</div>
+    <div class="kpi-sub">المتوسط: {{ '%.2f'|format(latest.avg_invoice) }}</div>
+  </div>
+  <div class="card">
+    <div class="kpi-label">الإيراد الصافي (الإيراد - المصاريف)</div>
+    <div class="kpi-value">{{ '%.2f'|format(latest.net_total) }}</div>
+    <div class="kpi-sub">الإيراد: {{ '%.2f'|format(latest.total) }} | المصاريف: {{ '%.2f'|format(latest.expenses or 0.0) }}</div>
+  </div>
+  <div class="card">
+    <div class="kpi-label">الاستهلاك (kWh)</div>
+    <div class="kpi-value">{{ latest.kwh }}</div>
+  </div>
+  
+</div>
+
+<h2 style="margin-top:18px">المصاريف</h2>
+<div class="cards">
+  <div class="card">
+    <div class="kpi-label">إجمالي المصاريف</div>
+    <div class="kpi-value" id="expTotal">0</div>
+  </div>
+  <div class="card">
+    <div class="kpi-label">وقود</div>
+    <div class="kpi-value" id="expFuel">0</div>
+    <div class="kpi-sub">ليترات: <span id="expFuelLitres">0</span></div>
+  </div>
+  <div class="card">
+    <div class="kpi-label">صيانة</div>
+    <div class="kpi-value" id="expMaint">0</div>
+  </div>
+  <div class="card">
+    <div class="kpi-label">أخرى</div>
+    <div class="kpi-value" id="expOther">0</div>
+  </div>
+</div>
+<!-- Charts -->
+<div class="charts">
+  <div class="chart-card">
+    <div class="chart-card-head">
+      <h3>الإيراد الشهري</h3>
+      <div class="actions">
+        <button class="btn" type="button" onclick="openFullscreenChart('revenueChart')">ملء الشاشة</button>
+        <button class="btn" type="button" onclick="resetZoom('revenueChart')">إعادة تعيين</button>
+      </div>
+    </div>
+    <div id="revenueChart" class="chart" style="height:360px"></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-card-head">
+      <h3>الفواتير المدفوعة مقابل غير المدفوعة</h3>
+      <div class="actions">
+        <button class="btn" type="button" onclick="openFullscreenChart('paidUnpaidChart')">ملء الشاشة</button>
+        <button class="btn" type="button" onclick="resetZoom('paidUnpaidChart')">إعادة تعيين</button>
+      </div>
+    </div>
+    <div id="paidUnpaidChart" class="chart" style="height:360px"></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-card-head">
+      <h3>عدد الفواتير</h3>
+      <div class="actions">
+        <button class="btn" type="button" onclick="openFullscreenChart('countChart')">ملء الشاشة</button>
+        <button class="btn" type="button" onclick="resetZoom('countChart')">إعادة تعيين</button>
+      </div>
+    </div>
+    <div id="countChart" class="chart" style="height:360px"></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-card-head">
+      <h3>الاستهلاك الشهري (kWh)</h3>
+      <div class="actions">
+        <button class="btn" type="button" onclick="openFullscreenChart('kwhChart')">ملء الشاشة</button>
+        <button class="btn" type="button" onclick="resetZoom('kwhChart')">إعادة تعيين</button>
+      </div>
+    </div>
+    <div id="kwhChart" class="chart" style="height:360px"></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-card-head">
+      <h3>المصاريف اليومية</h3>
+      <div class="actions">
+        <button class="btn" type="button" onclick="openFullscreenChart('expensesChart')">ملء الشاشة</button>
+        <button class="btn" type="button" onclick="resetZoom('expensesChart')">إعادة تعيين</button>
+      </div>
+    </div>
+    <div id="expensesChart" class="chart" style="height:360px"></div>
+  </div>
+</div>
+
+<!-- Modal fullscreen (no Fullscreen API) -->
+<div id="chartModal" class="modal hidden">
+  <div class="modal-backdrop" onclick="closeModal()"></div>
+  <div class="modal-body">
+    <button class="btn modal-close" type="button" onclick="closeModal()">✕</button>
+    <div id="modalChart" class="chart" style="height:80vh;"></div>
+  </div>
+</div>
+
+<style>
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:12px 0}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.kpi-label{color:#6b7280;font-size:12px}
+.kpi-value{font-size:24px;font-weight:700}
+.kpi-sub{color:#6b7280;font-size:12px;margin-top:4px}
+
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin:12px 0}
+.chart-card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.04);display:flex;flex-direction:column;min-height:360px}
+.chart-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.chart{width:100%}
+
+.modal.hidden{display:none}
+.modal{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center}
+.modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.5)}
+.modal-body{position:relative;background:#fff;border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25);width:min(1200px,92vw);height:88vh;display:flex;flex-direction:column}
+.modal-close{position:absolute;top:10px;left:10px;z-index:1}
+.modal-body .chart{flex:1 1 auto}
+</style>
+{% endblock %}
+
+{% block scripts %}
+
+
+<script>
+// Data from Flask
+
+// Single month picklist: set start=end=selected month in base year
+
+(function(){
+  var form = document.getElementById('dashFilterForm');
+  if(!form) return;
+  var monthSel = document.getElementById('monthPicker');
+  var yearSel = document.getElementById('yearPicker');
+  var startInput = form.querySelector('input[name="start"]');
+  var endInput = form.querySelector('input[name="end"]');
+
+  // Determine defaults from context
+  var latestYM = {{ (latest.month or '')|tojson }};
+  var now = new Date();
+  var defYear = (latestYM && latestYM.indexOf('-')>0) ? latestYM.split('-')[0] : now.getFullYear().toString();
+  var defMonth = (latestYM && latestYM.indexOf('-')>0) ? latestYM.split('-')[1] : String(now.getMonth()+1).padStart(2,'0');
+
+  // Populate year options (from 2023 to current year + 1)
+  var startYear = 2023;
+  var endYear = now.getFullYear() + 1;
+  if(yearSel && yearSel.options.length === 0){
+    for(var y=endYear; y>=startYear; y--){
+      var opt = document.createElement('option');
+      opt.value = y.toString();
+      opt.textContent = y.toString();
+      yearSel.appendChild(opt);
+    }
+  }
+
+  // Preselect from current query (?start=YYYY-MM), else defaults
+  var currentStart = {{ (start or '')|tojson }};
+  var preYM = (currentStart && currentStart.indexOf('-')>0) ? currentStart : (defYear + '-' + defMonth);
+
+  if(monthSel) monthSel.value = preYM.split('-')[1];
+  if(yearSel) yearSel.value = preYM.split('-')[0];
+
+  function submitWith(ym){
+    if(startInput) startInput.value = ym;
+    if(endInput) endInput.value = ym;
+    form.submit();
+  }
+
+  function onChange(){
+    var ym = (yearSel ? yearSel.value : defYear) + '-' + (monthSel ? monthSel.value : defMonth);
+    submitWith(ym);
+  }
+
+  if(monthSel) monthSel.addEventListener('change', onChange);
+  if(yearSel) yearSel.addEventListener('change', onChange);
+})();
+
+
+function filterToMonth(ym){
+  const f = document.getElementById('dashFilterForm');
+  if(!f) return;
+  const s = f.querySelector('input[name="start"]');
+  const e = f.querySelector('input[name="end"]');
+  if(s) s.value = ym;
+  if(e) e.value = ym;
+  f.submit();
+}
+const labels = {{ labels|tojson }};
+const totals = {{ totals|tojson }};
+const kwh = {{ kwh|tojson }};
+const paid = {{ paid|tojson }};
+const unpaid = {{ unpaid|tojson }};
+const invoiceCounts = {{ invoice_counts|tojson }};
+
+// Registry for charts
+window.echartsCharts = window.echartsCharts || {};
+let modalChartInstance = null;
+
+// Helpers
+function baseOptions(){
+  return {
+    tooltip: { trigger: 'axis' },
+    toolbox: { feature: { saveAsImage: {}, restore: {} } },
+    grid: { left: 40, right: 20, top: 30, bottom: 60 },
+    dataZoom: [
+      { type: 'inside', zoomOnMouseWheel: true, moveOnMouseWheel: true },
+      { type: 'slider', bottom: 10 }
+    ],
+    xAxis: { type: 'category', data: labels },
+    yAxis: { type: 'value' },
+    series: []
+  };
+}
+
+function makeChart(elId, option){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  const inst = echarts.init(el);
+  inst.setOption(option);
+  window.echartsCharts[elId] = inst;
+  window.addEventListener('resize', function(){ inst.resize(); });
+}
+
+function resetZoom(elId){
+  const ch = window.echartsCharts[elId];
+  if(ch){ ch.dispatchAction({ type: 'restore' }); }
+}
+
+function openFullscreenChart(sourceId){
+  const src = window.echartsCharts[sourceId];
+  if(!src) return;
+  const modal = document.getElementById('chartModal');
+  modal.classList.remove('hidden');
+  const el = document.getElementById('modalChart');
+  if(!modalChartInstance){ modalChartInstance = echarts.init(el); }
+  const option = src.getOption();
+  modalChartInstance.clear();
+  modalChartInstance.setOption(option, true);
+  setTimeout(function(){ modalChartInstance.resize(); }, 0);
+}
+
+function closeModal(){
+  const modal = document.getElementById('chartModal');
+  modal.classList.add('hidden');
+  if(modalChartInstance){ setTimeout(function(){ modalChartInstance.resize(); }, 0); }
+}
+
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){ closeModal(); }
+});
+
+// Initialize charts after DOM is ready
+function initEcharts(){
+  if(typeof echarts === 'undefined'){
+    // Fallback message if CDN blocked
+    var ids = ['revenueChart','paidUnpaidChart','countChart','kwhChart'];
+    ids.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el){ el.innerHTML = '<div style="padding:16px;color:#b91c1c">⚠️ لم يتم تحميل مكتبة الرسوميات. يرجى الاتصال بالإنترنت أو إضافة echarts.min.js إلى static/</div>'; }
+    });
+    return;
+  }
+
+  // Revenue (line)
+  (function(){
+    var opt = baseOptions();
+    opt.series = [{ type: 'line', name: 'الإيراد', data: totals, smooth: true }];
+    makeChart('revenueChart', opt);
+  })();
+
+  // Paid vs Unpaid (stacked bar)
+  (function(){
+    var opt = baseOptions();
+    opt.series = [
+      { type: 'bar', name: 'مدفوع', data: paid, stack: 's1' },
+      { type: 'bar', name: 'غير مدفوع', data: unpaid, stack: 's1' }
+    ];
+    makeChart('paidUnpaidChart', opt);
+  })();
+
+  // Count (bar)
+  (function(){
+    var opt = baseOptions();
+    opt.series = [{ type: 'bar', name: 'عدد', data: invoiceCounts }];
+    makeChart('countChart', opt);
+  })();
+
+  // kWh (line)
+  (function(){
+    var opt = baseOptions();
+    opt.series = [{ type: 'line', name: 'kWh', data: kwh, smooth: true }];
+    makeChart('kwhChart', opt);
+  })();
+}
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', initEcharts);
+}else{
+  initEcharts();
+}
+
+
+// Expenses section loader
+
+async function loadExpenses(){
+  try{
+    const url = new URL("{{ url_for('api_expenses_summary') }}", window.location.origin);
+    // pass month filter
+    var form = document.getElementById("dashFilterForm");
+    if(form){
+      var s = form.querySelector('input[name="start"]')?.value;
+      var e = form.querySelector('input[name="end"]')?.value;
+      if(s){ url.searchParams.set("start", s+"-01"); }
+      if(e){ url.searchParams.set("end", e+"-31"); }
+    }
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('Failed to load expenses');
+    const data = await res.json();
+    const byType = data.by_type || {};
+    const itemsByDay = Array.isArray(data.by_day) ? data.by_day : [];
+    const total = (byType.fuel||0) + (byType.maintenance||0) + (byType.other||0);
+    // Update KPIs
+    const fmt = (n)=> (Number(n||0)).toFixed(2);
+    document.getElementById('expTotal').textContent = fmt(total);
+    document.getElementById('expFuel').textContent = fmt(byType.fuel||0);
+    document.getElementById('expMaint').textContent = fmt(byType.maintenance||0);
+    document.getElementById('expOther').textContent = fmt(byType.other||0);
+    document.getElementById('expFuelLitres').textContent = fmt(data.fuel_litres||0);
+
+    // Build chart
+    const days = itemsByDay.map(d => d.date);
+    const totals = itemsByDay.map(d => (d.total||0));
+    var opt = baseOptions();
+    opt.title = { text: 'تطور المصاريف اليومية', left: 'center' };
+    opt.xAxis = { type: 'category', data: days };
+    opt.yAxis = { type: 'value' };
+    opt.series = [{ type: 'bar', name: 'إجمالي المصاريف', data: totals, smooth: true }];
+    makeChart('expensesChart', opt);
+  }catch(e){
+    console.error(e);
+  }
+}
+
+
+if (typeof initEcharts === 'function') {
+  // call after charts loaded
+  try { loadExpenses(); } catch(e){ console.error(e); }
+} else {
+  // if no init, call on DOMContentLoaded
+  if(document.readyState === 'loading'){document.addEventListener('DOMContentLoaded', loadExpenses);} else {loadExpenses();}
+}
+
+</script>
+{% endblock %}

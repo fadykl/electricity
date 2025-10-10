@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>فاتورة {{ i.invoice_number }}</title>
+<style>
+  body{font-family:Arial,Segoe UI,Tahoma,sans-serif;margin:24px;color:#111}
+  .sheet{width:210mm;margin:0 auto}
+  .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .logo{font-weight:800;font-size:20px}
+  .meta{font-size:14px}
+  .box{border:1px solid #ccc;border-radius:10px;padding:12px;margin:8px 0}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px dashed #ddd;padding:6px 8px;text-align:right}
+  .totals{margin-top:10px;display:flex;gap:12px;justify-content:flex-end}
+  .qr{width:100px;height:100px;object-fit:contain;border:1px solid #eee;border-radius:8px}
+  @page{size:A4;margin:12mm}
+  @media print{.noprint{display:none}}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="header">
+    <div class="logo">بلدية — فاتورة</div>
+    <div class="meta">رقم: {{ i.invoice_number }}<br>التاريخ: {{ i.date }}</div>
+  </div>
+  <div class="box">
+    <div>المشترك: <strong>{{ i.customer_name }}</strong></div>
+    <div>الشعبة: {{ i.branch_number }} — العداد: {{ i.meter_number or '—' }}</div>
+    <div>الأمبير: {{ i.subscription_amps or '—' }}</div>
+  </div>
+  <div class="box">
+    <table>
+      <tr><th>قراءة سابقة</th><td>{{ i.prev_reading }}</td></tr>
+      <tr><th>قراءة حالية</th><td>{{ i.curr_reading }}</td></tr>
+      <tr><th>الاستهلاك kWh</th><td>{{ i.kwh_used }}</td></tr>
+      <tr><th>سعر الوحدة</th><td>{{ i.unit_price|money_both }}</td></tr>
+      <tr><th>تكلفة الطاقة</th><td>{{ i.energy_cost|money_both }}</td></tr>
+      <tr><th>اشتراك شهري</th><td>{{ i.month_cost|money_both }}</td></tr>
+      <tr><th>الإجمالي</th><td><strong>{{ i.total_due|money_both }}</strong></td></tr>
+      <tr><th>الحالة</th><td>{{ 'مدفوع' if i.is_paid else 'غير مدفوع' }}</td></tr>
+    </table>
+  </div>
+  <div class="totals">
+    {% if qr_data_uri %}<img class="qr" src="{{ qr_data_uri }}">{% endif %}
+    <a class="noprint" href="{{ url_for('invoice_pdf', invoice_id=i.id) }}">تحميل PDF</a>
+  </div>
+</div>
+</body>
+</html>

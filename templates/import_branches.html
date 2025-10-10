@@ -1,0 +1,16 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h1>استيراد الشعب (Excel/CSV)</h1>
+<div class="card" dir="rtl" style="max-width:600px">
+  <p>حمّل ملف .xlsx أو .csv يحتوي الأعمدة: branch_number, customer_name, meter_number, subscription_amps, unit_price, subscription_fee, curr_reading</p>
+  <p><a class="btn" href="{{ url_for('branches_template_xlsx') }}">تحميل القالب (Excel)</a></p>
+  <form method="post" enctype="multipart/form-data">
+    <input type="file" name="file" accept=".xlsx,.xls,.csv" required>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn" type="submit">رفع واستيراد</button>
+      <a class="btn" href="{{ url_for('index') }}">رجوع</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

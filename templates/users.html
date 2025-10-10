@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>المستخدمون</h1>
+<form method="post" action="{{ url_for('manage_users') }}" class="card" style="max-width:760px; margin-bottom:16px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div>
+      <label>اسم المستخدم</label>
+      <input name="username" required>
+    </div>
+    <div>
+      <label>كلمة المرور</label>
+      <input name="password" type="password" required>
+    </div>
+    <div>
+      <label>الدور</label>
+      <select name="role">
+        <option value="employee">موظف</option>
+        <option value="admin">مدير</option>
+      </select>
+    </div>
+  </div>
+  <button class="btn btn-primary" style="margin-top:10px">إضافة مستخدم</button>
+</form>
+<table class="table">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>اسم المستخدم</th>
+      <th>الدور</th>
+      <th>إجراءات</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td>
+      <td>{{ u.username }}</td>
+      <td>{{ u.role }}</td>
+      <td>
+        <a class="btn btn-secondary" href="{{ url_for('edit_user', user_id=u.id) }}">تعديل</a>
+        <form method="post" action="{{ url_for('delete_user', user_id=u.id) }}" onsubmit="return confirm('هل أنت متأكد من الحذف؟');" style="display:inline;margin-inline-start:6px">
+          <button class="btn btn-danger">حذف</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

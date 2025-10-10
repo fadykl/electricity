@@ -1,0 +1,11 @@
+
+<!-- Replace your actions cell with this (in templates/list.html): -->
+<td style="white-space:nowrap">
+  <a class="no-row" href="{{ url_for('view_invoice', invoice_id=i.id) }}">عرض</a> |
+  <a class="no-row" href="{{ url_for('invoice_print', invoice_id=i.id) }}" target="_blank" rel="noopener">طباعة</a> |
+  <a class="no-row" href="{{ url_for('invoice_pdf',   invoice_id=i.id) }}" target="_blank" rel="noopener">تحميل PDF</a> |
+  <a class="no-row" href="{{ url_for('edit_invoice',  invoice_id=i.id) }}">تعديل</a> |
+  <form method="post" action="{{ url_for('delete_invoice', invoice_id=i.id) }}" style="display:inline" onsubmit="return confirm('حذف الفاتورة؟ لا يمكن التراجع.');">
+    <button type="submit" class="link danger">حذف</button>
+  </form>
+</td>

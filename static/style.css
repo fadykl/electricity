@@ -1,0 +1,96 @@
+
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Naskh Arabic UI", Arial, sans-serif; background:#f7f7f9; }
+.container { max-width: 1000px; color; black; margin: 30px auto; padding: 20px; background:#fff; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.06); }
+.topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px; }
+.topbar nav a { margin-inline-start: 10px; }
+h1, h2 { margin-top: 0; }
+.header { display:flex; align-items:center; justify-content:space-between; }
+.search { display:flex; gap:8px; align-items:center; }
+.search input { padding:8px; }
+.btn, button { padding:8px 14px; border:none; color:#fff; border-radius: 8px; text-decoration:none; cursor:pointer; }
+table { width:100%; border-collapse: collapse; margin-top: 16px; }
+th, td { text-align:center; padding:10px; border-bottom: 1px solid #eee; }
+.formgrid { display:grid; grid-template-columns: repeat(2, minmax(200px, 1fr)); gap:12px; }
+.formgrid label { display:flex; flex-direction:column; gap:6px; font-weight:600; }
+.formgrid input, select { padding:8px; border:1px solid #ddd; border-radius:8px; }
+.formgrid input.readonly { background:#f3f4f6; color:#555; }
+.actions { grid-column: 1 / -1; text-align:center; margin-top: 10px; }
+.grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; }
+.total { grid-column: 1 / -1; font-size: 1.2rem; background:#f1f5f9; padding:10px; border-radius:8px; }
+.flash-success { background:#e6ffed; padding:8px 10px; border-radius:6px; }
+.flash-error { background:#ffe6e6; padding:8px 10px; border-radius:6px; }
+.muted { color:#637381; font-size:.9rem; }
+code { background:#f1f5f9; padding:2px 6px; border-radius:6px; }
+.inline-form { display:flex; gap:8px; align-items:center; justify-content:center; }
+
+
+/* === Pro Theme Additions (RTL, tables, forms, buttons) === */
+:root{
+  --bg:#0b1020;
+  --surface:#11162a;
+  --muted:#94a3b8;
+  --text:#e2e8f0;
+  --accent:#22c55e;
+  --accent-2:#60a5fa;
+  --line:#1f2a44;
+  --danger:#ef4444;
+}
+html{direction:rtl}
+body{background:var(--bg);color:var(--text);font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"Noto Naskh Arabic UI","Noto Sans Arabic","Almarai",Tahoma,Arial}
+.container{max-width:1100px;margin:auto;padding:24px 16px}
+.header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:12px}
+.brand{font-weight:800;font-size:20px;letter-spacing:.3px}
+.kpis{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.kpi{background:linear-gradient(180deg,#FFFFFF,#0c1226);border:1px solid var(--line);border-radius:14px;padding:8px 12px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.search{display:flex;gap:8px;flex-wrap:wrap}
+.search input[type="text"], .search input[type="date"]{
+  border:1px solid var(--line);color:var(--text);
+  padding:10px 12px;border-radius:12px;outline:none;min-width:200px
+}
+.btn{background:#556fe4;border:1px solid var(--line);color:var(--text);padding:10px 14px;border-radius:999px;cursor:pointer;font-weight:700;text-decoration:none;display:inline-block}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#041a0c}
+.btn.ghost{background:transparent}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.table-wrap{color:black;border:1px solid var(--line);border-radius:16px;padding:8px;overflow:auto}
+table{width:100%;border-collapse:separate;border-spacing:0}
+thead th{position:sticky;top:0;background:#556fe4;color:#cbd5e1;border-bottom:1px solid var(--line);padding:10px 12px;text-align:right}
+tbody td{border-bottom:1px dashed var(--line);padding:10px 12px;vertical-align:middle}
+tfoot td{padding:12px;border-top:1px solid var(--line);font-weight:800}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:#cbd5e1;font-size:.85rem}
+.footer-actions{display:flex;gap:8px;justify-content:flex-start;margin-top:10px}
+@media (max-width:720px){
+  .search input[type="text"]{min-width:140px}
+  thead{display:none}
+  table, tbody, tr, td{display:block;width:100%}
+  tbody td{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line)}
+  tbody td::before{content:attr(data-th);color:var(--muted)}
+}
+/* === End Pro Theme Additions === */
+
+/* === White blocks: force dark-on-light for non-primary buttons & inputs === */
+.white-surface .btn:not(.primary),
+.white-surface a.btn:not(.primary),
+.white-surface button:not(.primary){
+  background:#ffffff !important;
+  color:#0f172a !important;
+  border:1px solid #e5e7eb !important;
+  box-shadow:none !important;
+}
+
+.white-surface .btn:not(.primary):hover,
+.white-surface a.btn:not(.primary):hover,
+.white-surface button:not(.primary):hover{
+  background:#f8fafc !important;
+}
+
+.white-surface input[type="text"],
+.white-surface input[type="date"],
+.white-surface input[type="number"],
+.white-surface select,
+.white-surface textarea{
+  background:#ffffff !important;
+  color:#0f172a !important;
+  border:1px solid #e5e7eb !important;
+}
+
+.white-surface ::placeholder{ color:#6b7280 !important; opacity:1; }

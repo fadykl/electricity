@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', filename='employee_overrides.css') }}">{% endblock %}
+{% block content %}
+<h1>فواتير الشعبة</h1>
+<div class="stats">
+  <div class="stat"><div>عدد الفواتير</div><div class="v">{{ invoices|length }}</div></div>
+  <div class="stat"><div>غير مدفوعة</div><div class="v">{{ invoices|selectattr('is_paid','equalto',False)|list|length }}</div></div>
+  <div class="stat"><div>إجمالي الاستهلاك</div><div class="v">{{ invoices|map(attribute='kwh_used')|sum }}</div></div>
+  <div class="stat"><div>إجمالي المبالغ</div><div class="v">{{ '{:,.0f}'.format(invoices|map(attribute='total_due')|sum or 0) }}</div></div>
+</div>
+
+<h1>فواتير الشعبة (الموظف)</h1>
+<form method="get" class="search">
+  <input type="text" name="q" placeholder="بحث بالاسم أو رقم الفاتورة أو الشعبة" value="{{ q or '' }}">
+  <input type="date" name="start" value="{{ start or '' }}">
+  <input type="date" name="end" value="{{ end or '' }}">
+  <button type="submit">بحث</button>
+  <a href="{{ url_for('employee_invoices') }}" class="btn" style="margin-inline-start:8px">مسح الفلاتر</a>
+  <a href="{{ url_for('index') }}" class="btn">الرجوع</a>
+</form>
+
+<div class="white-surface" style="border-radius:12px;padding:8px;overflow:auto">
+<table class="table-sticky table-zebra">
+  <thead>
+    <tr>
+      <th>رقم الفاتورة</th>
+      <th>التاريخ</th>
+      <th>المشترك</th>
+      <th>الشعبة</th>
+      <th>العداد السابق</th>
+      <th>العداد الحالي</th>
+      <th>kWh</th>
+      <th>الإجمالي</th>
+      <th>المدفوع</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for i in invoices %}
+    <tr>
+      <td data-th="رقم الفاتورة"><span class="badge">{{ i.invoice_number }}</span></td>
+      <td data-th="التاريخ">{{ i.date.strftime('%Y-%m-%d') }}</td>
+      <td data-th="المشترك">{{ i.customer_name }}</td>
+      <td data-th="الشعبة">{{ i.branch_number }}</td>
+      <td data-th="العداد السابق">{{ i.prev_reading }}</td>
+      <td data-th="العداد الحالي">{{ i.curr_reading }}</td>
+      <td data-th="kWh">{{ i.kwh_used }}</td>
+      <td data-th="الإجمالي">{{ '%.2f'|format(i.total_due) }}</td>
+      <td data-th="المدفوع">
+        {% if i.is_paid %}
+          <span class="badge success">مدفوع</span>
+        {% else %}
+          <span class="badge">غير مدفوع</span>
+        {% endif %}
+      </td>
+      <td><a href="{{ url_for('view_invoice', invoice_id=i.id) }}">عرض</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="6" style="text-align:left"><strong>مجموع الاستهلاك</strong></td>
+      <td><strong>{{ "{:,}".format(total_kwh or 0) }}</strong></td>
+      <td colspan="3"></td>
+    </tr>
+  </tfoot>
+</table>
+</div>
+{% endblock %}
