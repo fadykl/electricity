@@ -1489,7 +1489,13 @@ def dashboards():
 
     # ----- Invoices aggregated by month (LBP in DB) -----
     qry = (db.session.query(
-        func.strftime('%Y-%m', Invoice.date).label('ym'),
+        
+# Engine-aware year-month label for Invoice
+if db.engine.name == "postgresql":
+    ym_invoice = func.to_char(Invoice.date, 'YYYY-MM').label('ym')
+else:
+    ym_invoice = ym_invoice
+ym_invoice,
         func.count(Invoice.id).label('count'),
         func.sum(Invoice.total_due).label('total_due'),
         func.sum(Invoice.kwh_used).label('kwh'),
@@ -1532,7 +1538,13 @@ def dashboards():
 
     # ----- Expenses aggregated by month (ALREADY USD — NO division) -----
     exp_q = db.session.query(
-        func.strftime('%Y-%m', Expense.date).label('ym'),
+        
+# Engine-aware year-month label for Expense
+if db.engine.name == "postgresql":
+    ym_expense = func.to_char(Expense.date, 'YYYY-MM').label('ym')
+else:
+    ym_expense = ym_expense
+ym_expense,
         func.sum(Expense.cost).label('exp_total')
     )
     if start_date:
@@ -1586,22 +1598,7 @@ def create_admin_once():
             return "⚠️ Admin already exists."
 
             # --- TEMP: bootstrap admin on first request (works on Neon too) ---
-@app.before_first_request
-def _bootstrap_admin_if_missing():
-    try:
-        with app.app_context():
-            db.create_all()  # ensure tables exist on Neon/Postgres
-            if not User.query.filter_by(username="admin").first():
-                u = User(username="admin", role="admin", is_admin=True)
-                u.set_password("StrongPass123!")
-                db.session.add(u)
-                db.session.commit()
-                print("✅ Bootstrap: admin user created.")
-            else:
-                print("ℹ️ Bootstrap: admin already exists.")
-    except Exception as e:
-        # Don't crash the app if bootstrap fails; check logs on Render
-        print("⚠️ Bootstrap error:", e)
+
 
 
 
