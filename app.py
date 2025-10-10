@@ -1583,23 +1583,6 @@ ym_expense,
                            latest=latest,        # USD snapshot
                            start=start_str, end=end_str)
 
-@app.route("/create_admin_once")
-def create_admin_once():
-    from app import db, User
-    with app.app_context():
-        db.create_all()
-        if not User.query.filter_by(username="admin").first():
-            u = User(username="admin", role="admin", is_admin=True)
-            u.set_password("123fady123")
-            db.session.add(u)
-            db.session.commit()
-            return "✅ Admin created successfully."
-        else:
-            return "⚠️ Admin already exists."
-
-            # --- TEMP: bootstrap admin on first request (works on Neon too) ---
-
-
 
 
 if __name__ == "__main__":
