@@ -6,7 +6,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
-from sqlalchemy import text, func, case
+from sqlalchemy import inspect,text, func, case
 
 try:
     import qrcode
@@ -156,32 +156,44 @@ def inject_helpers():
     return dict(get_pricing=get_pricing)
 
 def get_pricing() -> Pricing:
-    # Robust getter that auto-creates row and self-heals columns if needed
-    try:
-        p = Pricing.query.order_by(Pricing.id.desc()).first()
-    except Exception as e:
-        msg = str(e)
-        # If columns don't exist yet (SQLite OperationalError e3q8), add them on the fly
-        if ("no such column" in msg) or ("has no column named" in msg):
-            try:
-                rows = db.session.execute(text("PRAGMA table_info(pricing)")).fetchall()
-                cols = {r[1] for r in rows}
-                if "currency_code" not in cols:
-                    db.session.execute(text("ALTER TABLE pricing ADD COLUMN currency_code TEXT NOT NULL DEFAULT 'LBP'"))
-                if "usd_rate" not in cols:
-                    db.session.execute(text("ALTER TABLE pricing ADD COLUMN usd_rate REAL NOT NULL DEFAULT 90000"))
-                db.session.commit()
-            except Exception as e2:
-                db.session.rollback()
-            # Retry after healing
-            p = Pricing.query.order_by(Pricing.id.desc()).first()
-        else:
-            raise
+    """
+    Robust getter that auto-creates the pricing row and self-heals columns if needed,
+    using SQLAlchemy's inspector (works on Postgres & SQLite).
+    """
+    insp = inspect(db.engine)
 
+    # Self-heal columns in a cross-DB way (no PRAGMA)
+    try:
+        cols = {c['name'] for c in insp.get_columns('pricing')}
+    except Exception:
+        cols = set()
+
+    try:
+        if 'currency_code' not in cols:
+            # Postgres & SQLite friendly
+            db.session.execute(text(
+                "ALTER TABLE pricing ADD COLUMN IF NOT EXISTS currency_code TEXT NOT NULL DEFAULT 'LBP'"
+            ))
+        if 'usd_rate' not in cols:
+            db.session.execute(text(
+                "ALTER TABLE pricing ADD COLUMN IF NOT EXISTS usd_rate REAL NOT NULL DEFAULT 90000"
+            ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        # If inspector failed or ALTER blocked, continue—row creation below will still work
+
+    # Fetch or create the pricing row
+    p = Pricing.query.order_by(Pricing.id.desc()).first()
     if not p:
-        p = Pricing(unit_price=0.0, fee_20=0.0, fee_15=0.0, fee_10=0.0, fee_5=0.0, currency_code='LBP', usd_rate=90000.0)
-        db.session.add(p); db.session.commit()
+        p = Pricing(
+            unit_price=0.0, fee_20=0.0, fee_15=0.0, fee_10=0.0, fee_5=0.0,
+            currency_code='LBP', usd_rate=90000.0
+        )
+        db.session.add(p)
+        db.session.commit()
     return p
+
 
 
 def month_bounds(d: date):
@@ -855,7 +867,7 @@ def new_invoice():
         if unit_price is None:
             unit_price = float(get_pricing().unit_price or 0.0)
         subscription_fee = _float(request.form.get("subscription_fee"))
-        is_paid_val = request.form.get("is_paid") in ["on", "1", "true", "True"]
+    is_paid_val = request.form.get("is_paid") in ["on", "1", "true", "True"]
         # 5) create invoice using the selected date
         inv = Invoice(
             invoice_number=next_invoice_number_for_date(use_date),
@@ -1435,21 +1447,39 @@ with app.app_context():
     except Exception:
         pass
     # users.is_admin (one-time)
+      insp = inspect(db.engine)
+
+    def table_exists(table_name: str) -> bool:
+        try:
+            return table_name in insp.get_table_names()
+        except Exception:
+            return False
+
+    def has_column(table_name: str, col_name: str) -> bool:
+        try:
+            cols = insp.get_columns(table_name)
+            return any(c.get("name") == col_name for c in cols)
+        except Exception:
+            return False
+
+    # --- users.is_admin (one-time) ---
     try:
-        rows = db.session.execute(text("PRAGMA table_info(users)")).fetchall()
-        cols = {r[1] for r in rows}
-        if "is_admin" not in cols:
-            db.session.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"))
+        if table_exists("users") and not has_column("users", "is_admin"):
+            # Postgres-friendly syntax; fine on SQLite too
+            db.session.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE"
+            ))
             db.session.commit()
             print("[migrate] Added users.is_admin")
     except Exception as e:
         print("[migrate] users.is_admin check:", e)
-    # pricing.fee_15 (one-time)
+
+    # --- pricing.fee_15 (one-time) ---
     try:
-        rows = db.session.execute(text("PRAGMA table_info(pricing)")).fetchall()
-        cols = {r[1] for r in rows}
-        if "fee_15" not in cols:
-            db.session.execute(text("ALTER TABLE pricing ADD COLUMN fee_15 REAL NOT NULL DEFAULT 0"))
+        if table_exists("pricing") and not has_column("pricing", "fee_15"):
+            db.session.execute(text(
+                "ALTER TABLE pricing ADD COLUMN IF NOT EXISTS fee_15 REAL NOT NULL DEFAULT 0"
+            ))
             db.session.commit()
             print("[migrate] Added pricing.fee_15")
     except Exception as e:
