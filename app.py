@@ -1448,8 +1448,8 @@ with app.app_context():
         db.create_all()
     except Exception:
         pass
-    # users.is_admin (one-time)
-        insp = inspect(db.engine)
+
+    insp = inspect(db.engine)
 
     def table_exists(table_name: str) -> bool:
         try:
@@ -1467,7 +1467,6 @@ with app.app_context():
     # --- users.is_admin (one-time) ---
     try:
         if table_exists("users") and not has_column("users", "is_admin"):
-            # Postgres-friendly syntax; fine on SQLite too
             db.session.execute(text(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE"
             ))
@@ -1486,6 +1485,7 @@ with app.app_context():
             print("[migrate] Added pricing.fee_15")
     except Exception as e:
         print("[migrate] pricing.fee_15 check:", e)
+
 
 
 
