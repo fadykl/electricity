@@ -867,7 +867,7 @@ def new_invoice():
         if unit_price is None:
             unit_price = float(get_pricing().unit_price or 0.0)
         subscription_fee = _float(request.form.get("subscription_fee"))
-    is_paid_val = request.form.get("is_paid") in ["on", "1", "true", "True"]
+        is_paid_val = request.form.get("is_paid") in ["on", "1", "true", "True"]
         # 5) create invoice using the selected date
         inv = Invoice(
             invoice_number=next_invoice_number_for_date(use_date),
@@ -879,7 +879,9 @@ def new_invoice():
             prev_reading=prev_reading,
             curr_reading=curr_reading,
             unit_price = (unit_price if unit_price is not None else float(get_pricing().unit_price or 0.0)),
-            subscription_fee=subscription_fee if subscription_fee is not None else (getattr(last, "subscription_fee", None) or get_pricing().fee_for_amp(subscription_amps or (getattr(last, "subscription_amps", 0) or 0))),
+            subscription_fee=subscription_fee if subscription_fee is not None else (getattr(last, "subscription_fee", None) or 
+            get_pricing().fee_for_amp(subscription_amps or 
+            (getattr(last, "subscription_amps", 0) or 0))),
             is_paid=is_paid_val,
         )
 
@@ -1447,7 +1449,7 @@ with app.app_context():
     except Exception:
         pass
     # users.is_admin (one-time)
-      insp = inspect(db.engine)
+        insp = inspect(db.engine)
 
     def table_exists(table_name: str) -> bool:
         try:
