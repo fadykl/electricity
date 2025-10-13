@@ -855,7 +855,7 @@ def new_invoice():
         if unit_price is None:
             unit_price = float(get_pricing().unit_price or 0.0)
         subscription_fee = _float(request.form.get("subscription_fee"))
-
+        is_paid_val = request.form.get("is_paid") in ["on", "1", "true", "True"]
         # 5) create invoice using the selected date
         inv = Invoice(
             invoice_number=next_invoice_number_for_date(use_date),
