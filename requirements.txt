@@ -6,3 +6,4 @@ SQLAlchemy
 gunicorn
 psycopg2-binary    # فقط لو حتستعمل Postgres
 qrcode             # لو احتجته
+openpyxl
