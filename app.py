@@ -7,12 +7,130 @@ from flask_login import LoginManager, login_user, login_required, logout_user, c
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from sqlalchemy import inspect,text, func, case
+from werkzeug.middleware.proxy_fix import ProxyFix  # trust proxy headers on Render
 
+try:
+    from flask_compress import Compress
+except Exception:
+    Compress = None
 try:
     import qrcode
 except Exception:
     qrcode = None
 
+app = Flask(__name__, static_folder="static", static_url_path="/static")
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
+
+# ---------------------- Core settings ----------------------
+# SECRET_KEY from environment (set it in Render → Environment)
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "change-me-please")
+
+# Optional: set timezone for logs (purely informational)
+os.environ.setdefault("TZ", "Asia/Beirut")
+
+# Limit upload size (defensive; adjust for your XLSX size)
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB
+
+# JSON settings (optional)
+app.config["JSON_SORT_KEYS"] = False
+app.config["JSON_AS_ASCII"] = False
+
+# ---------------------- Database URL (Render/Neon) ----------------------
+db_url = os.getenv("DATABASE_URL", "sqlite:///invoices.db")
+
+# Safety: if someone set postgresql:// without driver, upgrade to psycopg2 driver
+if db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Connection pool tuning for Neon/Render (reduces cold-start/db reconnect latency)
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "pool_pre_ping": True,       # drop dead connections quickly
+    "pool_size": 5,              # small pool for free tiers
+    "max_overflow": 5,
+    "pool_recycle": 280,         # recycle before common idle timeouts
+    # For Neon over SSL:
+    "connect_args": {"sslmode": "require"} if db_url.startswith("postgresql+psycopg2://") else {},
+}
+
+# ---------------------- Init extensions ----------------------
+db = SQLAlchemy(app)
+
+login_manager = LoginManager(app)
+login_manager.login_view = "login"   # make sure you have endpoint=login
+login_manager.login_message = "الرجاء تسجيل الدخول."
+
+# HTTP compression (gzip) for faster page loads
+if Compress is not None:
+    Compress(app)
+
+# ---------------------- Static caching headers ----------------------
+# Cache /static assets aggressively in browsers & Cloudflare (after you enable proxy)
+@app.after_request
+def _add_cache_headers(resp):
+    # Long cache for static files (immutable if filenames change with versioning)
+    if request.path.startswith("/static/"):
+        resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    else:
+        # Brief caching for dynamic routes (optional)
+        resp.headers.setdefault("Cache-Control", "no-store")
+    return resp
+
+# ---------------------- (Optional) Security headers ----------------------
+@app.after_request
+def _security_headers(resp):
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # If you use inline scripts, keep CSP relaxed; otherwise you can tighten it
+    # resp.headers.setdefault("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';")
+    return resp
+
+# ---------------------- Bootstrap DB / lightweight migrations ----------------------
+with app.app_context():
+    try:
+        db.create_all()
+    except Exception:
+        pass
+
+    # Example: cross-DB column checks (no PRAGMA)
+    insp = inspect(db.engine)
+
+    def table_exists(name: str) -> bool:
+        try:
+            return name in insp.get_table_names()
+        except Exception:
+            return False
+
+    def has_column(table: str, col: str) -> bool:
+        try:
+            return any(c.get("name") == col for c in insp.get_columns(table))
+        except Exception:
+            return False
+
+    # users.is_admin (safe on Postgres & SQLite)
+    try:
+        if table_exists("users") and not has_column("users", "is_admin"):
+            db.session.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE"
+            ))
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    # pricing.fee_15 (safe on Postgres & SQLite)
+    try:
+        if table_exists("pricing") and not has_column("pricing", "fee_15"):
+            db.session.execute(text(
+                "ALTER TABLE pricing ADD COLUMN IF NOT EXISTS fee_15 REAL NOT NULL DEFAULT 0"
+            ))
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+       
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-key-change-me"
 #app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///invoices.db"
