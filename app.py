@@ -1,3 +1,5 @@
+import openpyxl
+from sqlalchemy.exc import IntegrityError
 import os, io, csv, base64,re
 from datetime import datetime, date, timedelta
 
@@ -141,7 +143,7 @@ db = SQLAlchemy(app)
 
 
 # ---- Keep user filters (ym/start/end) across actions ----
-from flask import make_response
+from flask import make_response, request, redirect, url_for, flash, render_template
 
 def _current_filter_args():
     keys = ("ym", "start", "end", "status", "q")
@@ -1729,5 +1731,192 @@ def dashboards():
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
 
+# ========= INVOICE IMPORT (streamed, batched, dup-safe) =========
+import io, traceback
 
+def _to_int(v, default=0):
+    try:
+        return int(v)
+    except:
+        try:
+            return int(float(v))
+        except:
+            return default
 
+def _to_float(v, default=0.0):
+    try:
+        return float(v)
+    except:
+        return default
+
+def _parse_date_any(x) -> date:
+    if isinstance(x, date): return x
+    if isinstance(x, datetime): return x.date()
+    s = str(x or "").strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"):
+        try: return datetime.strptime(s, fmt).date()
+        except: pass
+    raise ValueError(f"Unrecognized date format: {x!r}")
+
+def _invoice_rows_from_ws(ws):
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        inv_no            = (row[0] or "").strip()
+        inv_date          = _parse_date_any(row[1])
+        customer_name     = (row[2] or "").strip()
+        meter_number      = str(row[3] or "").strip()
+        branch_number     = str(row[4] or "").strip()
+        subscription_amps = _to_int(row[5], 0)
+        prev_reading      = _to_int(row[6], 0)
+        curr_reading      = _to_int(row[7], 0)
+        unit_price        = _to_float(row[8], 0.0)
+        subscription_fee  = _to_float(row[9], 0.0)
+        is_paid_val       = str(row[10] or "").lower() in ("1","true","yes","y","on","مدفوع")
+
+        kwh_used   = max(0, curr_reading - prev_reading)
+        energy_cost= round(kwh_used * unit_price, 2)
+        month_cost = subscription_fee
+        total_due  = round(energy_cost + month_cost, 2)
+
+        yield {
+            "invoice_number": inv_no,
+            "date": inv_date,
+            "customer_name": customer_name,
+            "meter_number": meter_number,
+            "branch_number": branch_number,
+            "subscription_amps": subscription_amps,
+            "prev_reading": prev_reading,
+            "curr_reading": curr_reading,
+            "unit_price": unit_price,
+            "subscription_fee": subscription_fee,
+            "is_paid": is_paid_val,
+            "kwh_used": kwh_used,
+            "energy_cost": energy_cost,
+            "month_cost": month_cost,
+            "total_due": total_due,
+        }
+
+@app.route("/admin/invoices/import-xlsx", methods=["GET", "POST"], endpoint="import_invoices_xlsx")
+@login_required
+@role_required("admin")
+def import_invoices_xlsx():
+    if request.method == "POST":
+        f = request.files.get("file")
+        if not f or not f.filename.lower().endswith(".xlsx"):
+            flash("Please upload a valid .xlsx file.", "error")
+            return redirect(request.url)
+
+        on_duplicate = (request.form.get("on_duplicate") or "skip").lower().strip()
+
+        try:
+            wb = openpyxl.load_workbook(f, read_only=True, data_only=True)
+        except Exception:
+            data = io.BytesIO(f.read())
+            wb = openpyxl.load_workbook(data, read_only=True, data_only=True)
+        ws = wb.active
+
+        BATCH = 300
+        created = updated = skipped = 0
+        buf = []
+
+        try:
+            for rec in _invoice_rows_from_ws(ws):
+                buf.append(rec)
+                if len(buf) >= BATCH:
+                    c,u,s = _flush_invoice_batch(buf, on_duplicate)
+                    created += c; updated += u; skipped += s
+                    buf.clear()
+
+            if buf:
+                c,u,s = _flush_invoice_batch(buf, on_duplicate)
+                created += c; updated += u; skipped += s
+
+            flash(f"✅ Import finished — Created: {created}, Updated: {updated}, Skipped: {skipped}", "success")
+            return redirect(url_for("invoices"))
+
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error("Import failed: %s", e, exc_info=True)
+            flash(f"❌ Import failed: {e}", "error")
+            return redirect(request.url)
+
+    return render_template("admin/import_invoices.html")
+
+def _flush_invoice_batch(batch, on_duplicate):
+    created = updated = skipped = 0
+
+    if db.engine.name == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        t = Invoice.__table__
+        stmt = pg_insert(t).values(batch)
+
+        if on_duplicate == "update":
+            upd = {
+                "date": stmt.excluded.date,
+                "customer_name": stmt.excluded.customer_name,
+                "meter_number": stmt.excluded.meter_number,
+                "branch_number": stmt.excluded.branch_number,
+                "subscription_amps": stmt.excluded.subscription_amps,
+                "prev_reading": stmt.excluded.prev_reading,
+                "curr_reading": stmt.excluded.curr_reading,
+                "unit_price": stmt.excluded.unit_price,
+                "subscription_fee": stmt.excluded.subscription_fee,
+                "is_paid": stmt.excluded.is_paid,
+                "kwh_used": stmt.excluded.kwh_used,
+                "energy_cost": stmt.excluded.energy_cost,
+                "month_cost": stmt.excluded.month_cost,
+                "total_due": stmt.excluded.total_due,
+            }
+            stmt = stmt.on_conflict_do_update(index_elements=["invoice_number"], set_=upd)
+            res = db.session.execute(stmt)
+            db.session.commit()
+            created = res.rowcount
+        else:
+            stmt = stmt.on_conflict_do_nothing(index_elements=["invoice_number"])
+            res = db.session.execute(stmt)
+            db.session.commit()
+            created = res.rowcount
+            skipped = len(batch) - created
+
+    else:
+        try:
+            db.session.bulk_insert_mappings(Invoice, batch)
+            db.session.commit()
+            created += len(batch)
+        except IntegrityError:
+            db.session.rollback()
+            for m in batch:
+                try:
+                    db.session.execute(text("""
+                        INSERT INTO invoices
+                          (invoice_number, date, customer_name, meter_number, branch_number,
+                           subscription_amps, prev_reading, curr_reading, unit_price,
+                           subscription_fee, is_paid, kwh_used, energy_cost, month_cost, total_due)
+                        VALUES
+                          (:invoice_number, :date, :customer_name, :meter_number, :branch_number,
+                           :subscription_amps, :prev_reading, :curr_reading, :unit_price,
+                           :subscription_fee, :is_paid, :kwh_used, :energy_cost, :month_cost, :total_due)
+                    """), m)
+                    db.session.commit()
+                    created += 1
+                except IntegrityError:
+                    db.session.rollback()
+                    if on_duplicate == "update":
+                        db.session.execute(text("""
+                            UPDATE invoices SET
+                              date=:date, customer_name=:customer_name,
+                              meter_number=:meter_number, branch_number=:branch_number,
+                              subscription_amps=:subscription_amps,
+                              prev_reading=:prev_reading, curr_reading=:curr_reading,
+                              unit_price=:unit_price, subscription_fee=:subscription_fee,
+                              is_paid=:is_paid, kwh_used=:kwh_used,
+                              energy_cost=:energy_cost, month_cost=:month_cost,
+                              total_due=:total_due
+                            WHERE invoice_number=:invoice_number
+                        """), m)
+                        db.session.commit()
+                        updated += 1
+                    else:
+                        skipped += 1
+
+    return created, updated, skipped
+# ========= END INVOICE IMPORT =========
