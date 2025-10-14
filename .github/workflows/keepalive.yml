@@ -1,0 +1,19 @@
+name: keepalive
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # every 10 minutes
+  workflow_dispatch:         # allow manual run
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Hit public health endpoint
+        run: |
+          set -e
+          curl -sS -o /dev/null -w "%{http_code}\n" https://kk-electricity.org/health
+          # Also pre-warm login page assets (optional)
+          curl -sS -o /dev/null https://kk-electricity.org/static/style.css
+          curl -sS -o /dev/null https://kk-electricity.org/static/white_surface_overrides.css
