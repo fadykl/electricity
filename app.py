@@ -552,49 +552,90 @@ def index():
         if q:
             rows = [r for r in rows if q in (r.branch_number or "").lower() or q in (r.customer_name or "").lower()]
         return render_template("employee_list.html", rows=rows, q=q, this_month=datetime.utcnow().strftime("%Y-%m"), ym=ym, status=status)
-        
 
-    # Admin list
+    # Admin list (FAST + PAGINATED)
     q = (request.args.get("q") or "").strip()
     status = (request.args.get("status") or "").strip().lower()
     start_param = (request.args.get("start") or "").strip()
-    end_param = (request.args.get("end") or "").strip()
-
-    qry = Invoice.query
-    if status == "paid":
-        qry = qry.filter(Invoice.is_paid.is_(True))
-    elif status == "unpaid":
-        qry = qry.filter(Invoice.is_paid.is_(False))
+    end_param   = (request.args.get("end") or "").strip()
 
     today = datetime.utcnow().date()
     first, next_first = month_bounds(today)
     start_date = end_date = None
     if not start_param and not end_param:
-        start_date = first; end_date = next_first - timedelta(days=1)
-        qry = qry.filter(Invoice.date >= start_date).filter(Invoice.date <= end_date)
+        start_date = first
+        end_date = next_first - timedelta(days=1)
     else:
         if start_param:
-            try: start_date = datetime.strptime(start_param, "%Y-%m-%d").date(); qry = qry.filter(Invoice.date >= start_date)
-            except Exception: start_date = None
+            try:
+                start_date = datetime.strptime(start_param, "%Y-%m-%d").date()
+            except Exception:
+                start_date = None
         if end_param:
-            try: end_date = datetime.strptime(end_param, "%Y-%m-%d").date(); qry = qry.filter(Invoice.date <= end_date)
-            except Exception: end_date = None
+            try:
+                end_date = datetime.strptime(end_param, "%Y-%m-%d").date()
+            except Exception:
+                end_date = None
 
-    invoices = qry.order_by(Invoice.id.desc()).all()
+    base = Invoice.query
+    if start_date:
+        base = base.filter(Invoice.date >= start_date)
+    if end_date:
+        base = base.filter(Invoice.date <= end_date)
+    if status == "paid":
+        base = base.filter(Invoice.is_paid.is_(True))
+    elif status == "unpaid":
+        base = base.filter(Invoice.is_paid.is_(False))
 
+    from sqlalchemy import or_
     if q:
-        ql = q.lower()
-        invoices = [i for i in invoices if ql in (i.customer_name or "").lower()
-                    or ql in (i.invoice_number or "").lower()
-                    or ql in (i.branch_number or "").lower()]
+        like = f"{q}%"
+        base = base.filter(or_(
+            Invoice.customer_name.ilike(like),
+            Invoice.branch_number.ilike(like),
+            Invoice.meter_number.ilike(like),
+            Invoice.invoice_number.ilike(like),
+        ))
 
-    total_kwh = sum(max(0, (i.curr_reading or 0) - (i.prev_reading or 0)) for i in invoices)
+    # Pagination
+    try:
+        page = max(int(request.args.get("page", 1)), 1)
+    except Exception:
+        page = 1
+    try:
+        per_page = min(max(int(request.args.get("per_page", 100)), 20), 200)
+    except Exception:
+        per_page = 100
+
+    # Totals using DB
+    count_q = db.session.query(func.count(Invoice.id))
+    sum_kwh_q = db.session.query(func.coalesce(func.sum(Invoice.kwh_used), 0))
+    # Reapply filters
+    where_parts = getattr(base, "_where_criteria", None)
+    if where_parts:
+        for crit in where_parts:
+            count_q = count_q.filter(crit)
+            sum_kwh_q = sum_kwh_q.filter(crit)
+    total_count = int(count_q.scalar() or 0)
+    total_kwh = int(sum_kwh_q.scalar() or 0)
+
+    items = (base
+             .order_by(Invoice.date.desc(), Invoice.id.desc())
+             .limit(per_page)
+             .offset((page - 1) * per_page)
+             .all())
+
     start_value = (start_date.isoformat() if start_date else (start_param or ""))
     end_value   = (end_date.isoformat()   if end_date   else (end_param   or ""))
 
-    return render_template("list.html", invoices=invoices, q=q, status=status,
-                           total_kwh=total_kwh, start=start_value, end=end_value,
-                           this_month=datetime.utcnow().strftime("%Y-%m"))
+    return render_template(
+        "list.html",
+        invoices=items, q=q, status=status,
+        total_kwh=total_kwh, start=start_value, end=end_value,
+        this_month=datetime.utcnow().strftime("%Y-%m"),
+        page=page, per_page=per_page, total_count=total_count
+    )
+
 
 # Employee quick create
 @app.post("/employee/quick-create", endpoint="employee_quick_create")
@@ -1604,6 +1645,28 @@ with app.app_context():
             ))
             db.session.commit()
             print("[migrate] Added pricing.fee_15")
+
+    # --- performance indexes for fast filtering/search ---
+    try:
+        if db.engine.name == "postgresql":
+            db.session.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date ON invoices(date)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date_id_desc ON invoices(date DESC, id DESC)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_customer_lower ON invoices(LOWER(customer_name))"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_branch_lower ON invoices(LOWER(branch_number))"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_meter_lower ON invoices(LOWER(meter_number))"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_invoice_lower ON invoices(LOWER(invoice_number))"))
+        else:
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date ON invoices(date)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date_id ON invoices(date, id)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_customer ON invoices(customer_name)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_branch ON invoices(branch_number)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_meter ON invoices(meter_number)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_invoice ON invoices(invoice_number)"))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print("[index-setup] skipped:", e)
     except Exception as e:
         print("[migrate] pricing.fee_15 check:", e)
 
