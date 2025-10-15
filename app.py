@@ -1647,26 +1647,26 @@ with app.app_context():
             print("[migrate] Added pricing.fee_15")
 
     # --- performance indexes for fast filtering/search ---
-    try:
-        if db.engine.name == "postgresql":
-            db.session.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date ON invoices(date)"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date_id_desc ON invoices(date DESC, id DESC)"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_customer_lower ON invoices(LOWER(customer_name))"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_branch_lower ON invoices(LOWER(branch_number))"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_meter_lower ON invoices(LOWER(meter_number))"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_invoice_lower ON invoices(LOWER(invoice_number))"))
-        else:
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date ON invoices(date)"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date_id ON invoices(date, id)"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_customer ON invoices(customer_name)"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_branch ON invoices(branch_number)"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_meter ON invoices(meter_number)"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_invoice ON invoices(invoice_number)"))
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        print("[index-setup] skipped:", e)
+        try:
+            if db.engine.name == "postgresql":
+                db.session.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date ON invoices(date)"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date_id_desc ON invoices(date DESC, id DESC)"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_customer_lower ON invoices(LOWER(customer_name))"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_branch_lower ON invoices(LOWER(branch_number))"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_meter_lower ON invoices(LOWER(meter_number))"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_invoice_lower ON invoices(LOWER(invoice_number))"))
+            else:
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date ON invoices(date)"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_date_id ON invoices(date, id)"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_customer ON invoices(customer_name)"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_branch ON invoices(branch_number)"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_meter ON invoices(meter_number)"))
+                db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_invoices_invoice ON invoices(invoice_number)"))
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print("[index-setup] skipped:", e)
     except Exception as e:
         print("[migrate] pricing.fee_15 check:", e)
 
